@@ -27,6 +27,12 @@ J_COUPLING = 1.0
 TRANSVERSE_FIELD = 1.0
 N_STEPS_SWEEP = [1, 2, 4, 8, 16]
 
+# QAVE (Quantum Algorithm Visualization Engine, q-inho/qave) animation will
+# fire only when the "QAVE" checkbox in Qollab is ticked (which installs the
+# `qave` package). The animation is rendered for a single representative
+# Trotter circuit at this many steps — kept small so frame count stays sane.
+QAVE_ANIMATION_STEPS = 2
+
 
 def build_ising_hamiltonian(n_qubits: int, J: float, h: float) -> SparsePauliOp:
     """1D open-chain transverse-field Ising:  H = -J Σ Z_i Z_{i+1} - h Σ X_i."""
@@ -78,6 +84,71 @@ def tv_distance(p: dict[str, float], q: dict[str, float]) -> float:
     return 0.5 * sum(abs(p.get(k, 0.0) - q.get(k, 0.0)) for k in keys)
 
 
+def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
+    """Emit a QAVE animation of `circuit` to ./qave_artifacts.
+
+    QAVE (https://github.com/q-inho/qave) is enabled by ticking the "QAVE"
+    checkbox above the editor on Qollab, which installs the `qave` package
+    along with the Processing + ffmpeg renderer. If the package is absent
+    (checkbox off) this function silently no-ops. If the package is present
+    but the renderer is missing, we fall back to a deterministic trace.json.
+    """
+    try:
+        from qave import (  # type: ignore[import-not-found]
+            ArtifactOptions,
+            RenderOptions,
+            SimulationOptions,
+            generate_animation_from_qiskit,
+            generate_trace_from_qiskit,
+        )
+    except ImportError:
+        return  # QAVE feature not enabled in this Qollab session.
+
+    from pathlib import Path
+
+    # Flatten PauliEvolutionGate into elementary gates so QAVE renders the
+    # internal Trotter structure (ZZ blocks + X-rotation layers) rather than
+    # a single opaque "evolution" box.
+    flattened = circuit.decompose(reps=3)
+
+    sim_opts = SimulationOptions(
+        algorithm_id="custom",
+        mode="preview",
+        seed=24,
+        shot_count=max(shots, 1),
+    )
+    artifact_opts = ArtifactOptions(out_dir=Path("qave_artifacts"))
+    render_opts = RenderOptions(
+        width=640,
+        height=360,
+        fps=15,
+        keep_frames=False,
+        emit_mp4=False,
+        emit_gif=True,
+    )
+
+    print(f"\n[QAVE] Rendering Trotter circuit (n_steps={n_steps}) ...")
+    try:
+        result = generate_animation_from_qiskit(
+            flattened, options=sim_opts, render=render_opts, artifacts=artifact_opts,
+        )
+    except Exception as exc:  # noqa: BLE001 - renderer dep errors vary
+        print(f"[QAVE] Animation renderer failed ({exc.__class__.__name__}: {exc}).")
+        print("[QAVE] Falling back to deterministic trace.json only.")
+        try:
+            trace = generate_trace_from_qiskit(
+                flattened, options=sim_opts, artifacts=artifact_opts,
+            )
+            print(f"[QAVE] Trace written to {trace.paths.trace_json}")
+        except Exception as exc2:  # noqa: BLE001
+            print(f"[QAVE] Trace generation also failed: {exc2}")
+        return
+
+    if result.gif_path is not None:
+        print(f"[QAVE] GIF: {result.gif_path}")
+    print(f"[QAVE] Trace: {result.paths.trace_json}")
+
+
 def main(
     shots: int = 1024,
     excludeLowProbabilityValues: bool = True,
@@ -118,6 +189,15 @@ def main(
         if excludeLowProbabilityValues and max(p_exact, p_quant) < lowProbabilityThreshold:
             continue
         print(f"  |{bitstring}>   exact={p_exact:.4f}   trotter={p_quant:.4f}")
+
+    # Optional QAVE animation — enable the "QAVE" checkbox in Qollab to install
+    # the `qave` package; this no-ops otherwise. Render at a small step count so
+    # the frame budget stays modest.
+    H_for_anim = build_ising_hamiltonian(N_QUBITS, J_COUPLING, TRANSVERSE_FIELD)
+    anim_circuit = trotter_circuit(
+        H_for_anim, EVOLUTION_TIME, QAVE_ANIMATION_STEPS, N_QUBITS
+    )
+    render_with_qave(anim_circuit, n_steps=QAVE_ANIMATION_STEPS, shots=shots)
 
     # Optional matplotlib figure — enable the "Visualization" checkbox to see it.
     try:
