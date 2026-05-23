@@ -199,11 +199,15 @@ def _locate_qave_sketch():
     return None
 
 
+SCRIPT_VERSION_MARKER = "v3-trace-primary-2026-05-23"
+
+
 def main(
     shots: int = 1024,
     excludeLowProbabilityValues: bool = True,
     lowProbabilityThreshold: float = 0.05,
 ):
+    print(f"[script version: {SCRIPT_VERSION_MARKER}]")
     H = build_ising_hamiltonian(N_QUBITS, J_COUPLING, TRANSVERSE_FIELD)
     exact = exact_distribution(H, EVOLUTION_TIME, N_QUBITS)
 
