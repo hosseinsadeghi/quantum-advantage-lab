@@ -85,13 +85,19 @@ def tv_distance(p: dict[str, float], q: dict[str, float]) -> float:
 
 
 def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
-    """Emit a QAVE animation of `circuit` to ./qave_artifacts.
+    """Emit a QAVE deterministic trace (and animation when possible) for `circuit`.
 
     QAVE (https://github.com/q-inho/qave) is enabled by ticking the "QAVE"
-    checkbox above the editor on Qollab, which installs the `qave` package
-    along with the Processing + ffmpeg renderer. If the package is absent
-    (checkbox off) this function silently no-ops. If the package is present
-    but the renderer is missing, we fall back to a deterministic trace.json.
+    checkbox above the editor on Qollab, which installs the `qave` package.
+    The Python side emits a deterministic ``trace.json`` that fully describes
+    per-step state evolution; that file is the canonical QAVE artifact and
+    can be downloaded and replayed locally with the QAVE Processing viewer.
+
+    Animation rendering additionally needs Processing + Java + ffmpeg + the
+    `viewer/processing_qave` sketch directory, none of which ship in the
+    pip wheel and none of which exist in Qollab's pyodide runtime, so we
+    always emit the trace first and only attempt the animation when a
+    sketch directory looks resolvable.
     """
     try:
         from qave import (  # type: ignore[import-not-found]
@@ -102,13 +108,13 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
             generate_trace_from_qiskit,
         )
     except ImportError:
-        return  # QAVE feature not enabled in this Qollab session.
+        return  # QAVE checkbox off → silent no-op.
 
     from pathlib import Path
 
-    # Flatten PauliEvolutionGate into elementary gates so QAVE renders the
+    # Flatten PauliEvolutionGate into elementary gates so QAVE captures the
     # internal Trotter structure (ZZ blocks + X-rotation layers) rather than
-    # a single opaque "evolution" box.
+    # one opaque "evolution" box.
     flattened = circuit.decompose(reps=3)
 
     sim_opts = SimulationOptions(
@@ -118,6 +124,32 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
         shot_count=max(shots, 1),
     )
     artifact_opts = ArtifactOptions(out_dir=Path("qave_artifacts"))
+
+    print(f"\n[QAVE] Generating deterministic trace for Trotter circuit (n_steps={n_steps}) ...")
+    try:
+        trace = generate_trace_from_qiskit(
+            flattened, options=sim_opts, artifacts=artifact_opts,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[QAVE] Trace generation failed: {exc.__class__.__name__}: {exc}")
+        return
+
+    print(f"[QAVE] trace.json   → {trace.paths.trace_json}")
+    if trace.paths.result_json is not None:
+        print(f"[QAVE] result.json  → {trace.paths.result_json}")
+    print(
+        "[QAVE] Download trace.json and replay it locally with the QAVE Processing\n"
+        "       viewer (https://github.com/q-inho/qave) to get the animation."
+    )
+
+    # Only attempt animation when a Processing sketch is plausibly resolvable.
+    # The qave wheel does not bundle viewer/processing_qave, so this requires
+    # a git checkout or an explicit sketch_dir.
+    sketch_dir = _locate_qave_sketch()
+    if sketch_dir is None:
+        return
+
+    print(f"[QAVE] Attempting GIF render with sketch_dir={sketch_dir} ...")
     render_opts = RenderOptions(
         width=640,
         height=360,
@@ -125,28 +157,46 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
         keep_frames=False,
         emit_mp4=False,
         emit_gif=True,
+        sketch_dir=sketch_dir,
     )
-
-    print(f"\n[QAVE] Rendering Trotter circuit (n_steps={n_steps}) ...")
     try:
         result = generate_animation_from_qiskit(
             flattened, options=sim_opts, render=render_opts, artifacts=artifact_opts,
         )
-    except Exception as exc:  # noqa: BLE001 - renderer dep errors vary
-        print(f"[QAVE] Animation renderer failed ({exc.__class__.__name__}: {exc}).")
-        print("[QAVE] Falling back to deterministic trace.json only.")
-        try:
-            trace = generate_trace_from_qiskit(
-                flattened, options=sim_opts, artifacts=artifact_opts,
-            )
-            print(f"[QAVE] Trace written to {trace.paths.trace_json}")
-        except Exception as exc2:  # noqa: BLE001
-            print(f"[QAVE] Trace generation also failed: {exc2}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[QAVE] Renderer unavailable ({exc.__class__.__name__}). Trace remains the artifact.")
         return
 
     if result.gif_path is not None:
-        print(f"[QAVE] GIF: {result.gif_path}")
-    print(f"[QAVE] Trace: {result.paths.trace_json}")
+        print(f"[QAVE] GIF          → {result.gif_path}")
+
+
+def _locate_qave_sketch():
+    """Return a Path to the QAVE Processing sketch if it exists, else None.
+
+    The pip-installed qave wheel does NOT bundle viewer/processing_qave (only
+    src/qave and src/qave_backend are packaged). The sketch is present when
+    qave was installed from a git checkout with the working tree intact.
+    """
+    from pathlib import Path
+    try:
+        import qave  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+
+    # Candidate locations to probe, in priority order.
+    pkg_dir = Path(qave.__file__).resolve().parent
+    candidates = [
+        pkg_dir.parents[2] / "viewer" / "processing_qave",  # repo checkout layout
+        pkg_dir.parents[1] / "viewer" / "processing_qave",
+        pkg_dir.parents[0] / "viewer" / "processing_qave",
+        Path("/lib/viewer/processing_qave"),
+        Path("viewer/processing_qave"),
+    ]
+    for cand in candidates:
+        if cand.exists():
+            return cand
+    return None
 
 
 def main(
