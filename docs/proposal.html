@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Advantage Lab — Qollab Quantum Creative Challenge Proposal</title>
+<style>
+  @page {
+    size: letter;
+    margin: 2.5cm 2.5cm 2.5cm 2.5cm;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #1a1a2e;
+    background: #fff;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 3px solid #4361ee;
+  }
+  .header h1 {
+    font-size: 26pt;
+    font-weight: 700;
+    color: #4361ee;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 12pt;
+    color: #555;
+    font-style: italic;
+  }
+  .header .submission-line {
+    font-size: 9.5pt;
+    color: #888;
+    margin-top: 8px;
+  }
+
+  /* Sections */
+  h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #4361ee;
+    margin-top: 24px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1.5px solid #e0e0e0;
+  }
+  h3 {
+    font-size: 11pt;
+    font-weight: 600;
+    color: #2d2d5e;
+    margin-top: 14px;
+    margin-bottom: 4px;
+  }
+  p, li {
+    font-size: 11pt;
+    margin-bottom: 6px;
+  }
+  ul, ol {
+    margin-left: 20px;
+    margin-bottom: 10px;
+  }
+  li { margin-bottom: 3px; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 14px 0;
+    font-size: 10pt;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    text-align: left;
+  }
+  th {
+    background: #4361ee;
+    color: #fff;
+    font-weight: 600;
+  }
+  tr:nth-child(even) { background: #f8f9ff; }
+
+  /* Accent box */
+  .accent-box {
+    background: #f0f3ff;
+    border-left: 4px solid #4361ee;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 30px;
+    padding-top: 12px;
+    border-top: 1.5px solid #e0e0e0;
+    text-align: center;
+    font-size: 9pt;
+    color: #999;
+  }
+
+  /* Page break helper */
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Quantum Advantage Lab</h1>
+  <div class="subtitle">An Interactive Platform for Visualizing Quantum vs. Classical Algorithm Races</div>
+  <div class="submission-line">Submitted to the Qollab Quantum Creative Challenge &bull; March 2026</div>
+</div>
+
+<!-- 1. CONCEPT DESCRIPTION -->
+<h2>1. Concept Description</h2>
+<p>
+Quantum Advantage Lab is an interactive platform that races quantum algorithms against their classical counterparts in real time, making quantum speedups visible and intuitive. Users launch side-by-side comparisons and watch animated visualizations as both solvers progress toward a solution simultaneously.
+</p>
+<p>The platform ships with four flagship modules:</p>
+<ul>
+  <li><strong>Search:</strong> Grover's algorithm vs. brute-force linear search on unstructured databases.</li>
+  <li><strong>Graph Traversal:</strong> Quantum walks vs. classical random walks on complex graphs.</li>
+  <li><strong>Optimization:</strong> Variational Quantum Eigensolver (VQE) vs. classical gradient-based optimization for molecular ground-state energy.</li>
+  <li><strong>Simulation:</strong> Hamiltonian simulation on quantum hardware vs. classical matrix exponentiation.</li>
+</ul>
+<p>
+Each module executes real quantum circuits on IonQ trapped-ion hardware via Qiskit, exploiting IonQ's all-to-all qubit connectivity and high gate fidelities to keep circuits shallow enough that quantum advantage is visible, not buried in noise. Intermediate results stream to the user so they see the quantum computation unfold — not just the final answer. Step-by-step annotations explain what is happening at each stage: oracle construction, amplitude amplification, variational parameter updates, and Trotter decomposition steps. The entire platform is open-source (MIT license), designed for remixing and community extension.
+</p>
+
+<!-- 2. TECHNICAL APPROACH -->
+<h2>2. Technical Approach</h2>
+
+<h3>Architecture Overview</h3>
+<div class="accent-box">
+  <strong>Quantum SDK:</strong> Qiskit &nbsp;|&nbsp; <strong>Hardware Provider:</strong> IonQ (Aria-class trapped-ion QPU) &nbsp;|&nbsp; <strong>Native Gate Set:</strong> {GPi, GPi2, MS} &nbsp;|&nbsp; <strong>Simulator Fallback:</strong> Qiskit Aer
+</div>
+
+<h3>Why IonQ's Trapped-Ion Architecture</h3>
+<p>
+This project is designed around IonQ's trapped-ion QPU — not as a generic backend, but because its architecture uniquely enables every module:
+</p>
+<ul>
+  <li><strong>All-to-all connectivity:</strong> IonQ's ions can entangle with any other ion directly, without the SWAP-gate overhead that superconducting architectures require for non-adjacent qubits. For Grover's multi-qubit oracle and VQE entangling layers, this means dramatically shallower circuits — fewer gates, less accumulated error, and a cleaner signal for the visualization to display.</li>
+  <li><strong>High-fidelity gates:</strong> IonQ Aria-class systems achieve &gt;99.5% two-qubit (MS gate) fidelity. This is critical for our "race" concept: users need to see quantum algorithms actually <em>win</em>, not drown in noise. High fidelity lets us run deeper Grover iterations and more VQE optimization rounds before decoherence degrades results.</li>
+  <li><strong>Long coherence times:</strong> Trapped-ion qubits maintain coherence for seconds (vs. microseconds for superconducting qubits), enabling the multi-step Hamiltonian simulation and iterative VQE circuits that would decohere on other platforms at these qubit counts.</li>
+  <li><strong>Native gate set (GPi, GPi2, MS):</strong> We compile directly to IonQ's native gates rather than using generic transpilation, minimizing circuit depth. The Mølmer-Sørensen (MS) entangling gate is particularly efficient for the all-pairs interactions in quantum walk and simulation modules.</li>
+</ul>
+<p>
+In short, IonQ's hardware gives us the fidelity to show real quantum advantage at educational scale, and the connectivity to keep circuits compact enough that advantage is visible rather than buried in routing overhead. A local Aer simulator provides an instant-feedback "practice mode" for exploration without consuming hardware credits.
+</p>
+
+<h3>Quantum Circuit Layer</h3>
+<p>
+All circuits are built with <strong>Qiskit</strong> and dispatched via the Qiskit IonQ provider, compiled to IonQ's native {GPi, GPi2, MS} gate set. Each module defines a parameterized circuit template: Grover oracles are auto-generated from the search target and leverage all-to-all connectivity for single-depth oracle construction; VQE ansatze use hardware-efficient layouts that exploit full connectivity rather than linear-chain entanglement; and Hamiltonian simulation circuits employ first-order Trotterization with native MS gates for efficient pairwise interactions.
+</p>
+
+<h3>Real-Time Job Orchestration</h3>
+<p>
+When a user starts a race, the platform submits the quantum job to IonQ via Qiskit's IonQ provider and launches the classical solver concurrently. Incremental state streams to the interface in real time: partial search progress, intermediate VQE energy estimates, random-walk positions, or Trotter-step fidelities. Users see the quantum computation unfold step by step, even when IonQ job queues introduce latency.
+</p>
+
+<h3>Visualization and Interpretation</h3>
+<p>
+Two synchronized panels — one per solver — animate the race. Visualizations include search-space amplitude heatmaps (Grover's), force-directed graph traversals (quantum walks), energy-landscape contour plots (VQE), and matrix-norm decay curves (Hamiltonian simulation). A shared timeline scrubber lets users replay any race at their own pace, with layered annotations explaining gate-level operations, measurement statistics, and error rates from the IonQ hardware.
+</p>
+
+<h3>Modular Algorithm Design</h3>
+<p>
+Each comparison module is a self-contained package: a Qiskit circuit builder, a classical solver, a visualization component, and an explanatory narrative. This plug-in architecture lets the community contribute new modules (e.g., Shor's algorithm, QAOA for MaxCut, quantum error correction demonstrations) without modifying core infrastructure. Circuits are parameterized so users can adjust problem size and observe how quantum advantage scales.
+</p>
+
+<!-- 3. CREATIVE / EDUCATIONAL VALUE -->
+<h2>3. Creative and Educational Value</h2>
+<p>
+Most introductions to quantum computing describe speedups with asymptotic notation and circuit diagrams. Quantum Advantage Lab takes a fundamentally different approach: it lets users <em>watch</em> quantum advantage happen. Seeing Grover's algorithm collapse toward the solution in √N steps while brute-force plods through N entries makes the quadratic speedup visceral, not theoretical.
+</p>
+<p>
+Every module includes layered annotations — a plain-language summary for newcomers, plus expandable technical detail (gate decompositions, circuit depth, error rates) for advanced learners. This makes the platform useful across skill levels, from a curious teenager's first encounter with quantum computing to a graduate seminar's hands-on lab.
+</p>
+<p>
+Educationally, Quantum Advantage Lab doubles as courseware. Instructors can assign specific modules, adjust problem sizes, and have students compare simulator results to real hardware outputs — introducing noise, decoherence, and error mitigation organically. The MIT license and modular architecture encourage community remixes: hackathon teams can build new modules, and researchers can plug in custom circuits to visualize their own algorithms. The goal is a living, growing resource that makes quantum computing tangible, shareable, and genuinely fun.
+</p>
+
+<div class="page-break"></div>
+
+<!-- 4. BUDGET & COMPUTE ESTIMATES -->
+<h2>4. Budget and Compute Estimates</h2>
+
+<h3>Development Costs</h3>
+<ul>
+  <li>Qiskit circuit development and IonQ native-gate optimization — $1,500</li>
+  <li>Classical solver implementations and benchmarking — $1,000</li>
+  <li>Visualization and interactive platform build-out — $1,500</li>
+  <li>Documentation, testing, and hosting (6 months) — $1,000</li>
+  <li><strong>Development Subtotal: $5,000</strong></li>
+</ul>
+
+<h3>IonQ Compute Credits</h3>
+<ul>
+  <li>Grover's Search (up to 20 qubits) — 50–200 circuits/run, ~5,000 runs — ~$12,000</li>
+  <li>Quantum Walks (8–15 qubits) — 20–80 circuits/run, ~4,000 runs — ~$10,000</li>
+  <li>VQE Optimization (6–12 qubits, iterative) — 200–500 circuits/run, ~3,000 runs — ~$15,000</li>
+  <li>Hamiltonian Simulation (10–20 qubits) — 30–100 circuits/run, ~3,000 runs — ~$13,000</li>
+  <li><strong>Compute Subtotal: ~$50,000</strong></li>
+</ul>
+
+<div class="accent-box">
+  <strong>Total Requested Budget: ~$55,000</strong> ($5K development + ~$50K IonQ credits)<br>
+  A local simulator mode ensures the platform remains fully functional for exploration and teaching without consuming hardware credits.
+</div>
+
+<!-- 5. TIMELINE & DELIVERABLES -->
+<h2>5. Timeline and Deliverables</h2>
+<ul>
+  <li><strong>Week 1 (May 4–10):</strong> Qiskit core &amp; IonQ integration — Circuit builder framework, IonQ provider configuration, native gate compilation pipeline, Aer simulator fallback, CI/CD pipeline</li>
+  <li><strong>Week 2 (May 11–17):</strong> Module 1: Grover's Search — Search race with animated heatmap visualization, IonQ integration tested</li>
+  <li><strong>Week 3 (May 18–24):</strong> Module 2: Quantum Walks — Graph traversal race with force-directed animation</li>
+  <li><strong>Week 4 (May 25–31):</strong> Module 3: VQE Optimization — Energy-landscape race with contour-plot visualization</li>
+  <li><strong>Week 5 (Jun 1–7):</strong> Module 4: Hamiltonian Simulation — Simulation race with matrix-norm decay curves</li>
+  <li><strong>Week 6 (Jun 8–15):</strong> Polish &amp; launch — UX refinement, documentation, community contribution guide, public release</li>
+</ul>
+
+<!-- 6. TEAM INFORMATION -->
+<h2>6. Team</h2>
+<p>
+<strong>Hossein Sadeghi Esfahani, PhD</strong> — Sole proposer and developer.
+</p>
+<p>
+Hossein holds a PhD from the University of British Columbia and brings over a decade of experience at the frontier of quantum computing. At Pasqal Canada, he led academic and R&amp;D partnerships, collaborating with university research groups on neutral-atom quantum algorithms and co-developing benchmarking frameworks for near-term quantum hardware. Prior to that, he spent seven years at D-Wave Systems, progressing from applied researcher to solution architect and team lead — designing quantum optimization algorithms, co-inventing three patents in quantum optimization and benchmarking, and building end-to-end quantum software solutions from prototype through production deployment.
+</p>
+<p>
+His research contributions include publications in quantum machine learning and optimization. He has served as an investigator in the Creative Destruction Lab (CDL) Quantum Stream, mentoring early-stage quantum startups on technical feasibility and algorithm design. Hossein combines deep hands-on experience building quantum circuits and algorithms with the architectural perspective to deliver a polished, extensible platform — the exact skill set this project demands.
+</p>
+
+<!-- FOOTER -->
+<div class="footer">
+  Quantum Advantage Lab &bull; Qollab Quantum Creative Challenge Proposal &bull; Hossein Sadeghi Esfahani
+</div>
+
+</body>
+</html>
