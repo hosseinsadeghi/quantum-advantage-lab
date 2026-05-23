@@ -20,6 +20,18 @@ from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.synthesis import LieTrotter
 
+# QAVE Backend A only knows these gate names (see q-inho/qave
+# backend/src/qave_backend/simulator/gates.py::matrix_for_gate). Anything
+# else — notably `p` (phase) emitted by Qiskit's PauliEvolutionGate
+# decomposition — produces an empty trace with an "Unsupported gate"
+# annotation, so we rewrite into this basis before handing off.
+QAVE_BASIS_GATES = [
+    "x", "y", "z", "h", "s", "t",
+    "rx", "ry", "rz",
+    "cx", "cz", "swap",
+    "ccx", "cswap",
+]
+
 # ---- Problem parameters (edit these to explore) -----------------------------
 N_QUBITS = 4
 EVOLUTION_TIME = 0.5
@@ -114,8 +126,13 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
 
     # Flatten PauliEvolutionGate into elementary gates so QAVE captures the
     # internal Trotter structure (ZZ blocks + X-rotation layers) rather than
-    # one opaque "evolution" box.
-    flattened = circuit.decompose(reps=3)
+    # one opaque "evolution" box. Then transpile into QAVE's supported basis —
+    # raw decompose() leaves `p` (phase) gates that QAVE rejects.
+    flattened = transpile(
+        circuit.decompose(reps=3),
+        basis_gates=QAVE_BASIS_GATES,
+        optimization_level=0,
+    )
 
     sim_opts = SimulationOptions(
         algorithm_id="custom",
@@ -132,6 +149,9 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
         )
     except Exception as exc:  # noqa: BLE001
         print(f"[QAVE] Trace generation failed: {exc.__class__.__name__}: {exc}")
+        return
+
+    if not _qave_trace_is_usable(trace):
         return
 
     print(f"[QAVE] trace.json   → {trace.paths.trace_json}")
@@ -167,8 +187,50 @@ def render_with_qave(circuit: QuantumCircuit, n_steps: int, shots: int) -> None:
         print(f"[QAVE] Renderer unavailable ({exc.__class__.__name__}). Trace remains the artifact.")
         return
 
+    if not _qave_trace_is_usable(result):
+        return
+
     if result.gif_path is not None:
         print(f"[QAVE] GIF          → {result.gif_path}")
+
+
+def _qave_trace_is_usable(result: object) -> bool:
+    """Return True iff QAVE produced a non-empty trace with no error annotations.
+
+    QAVE can return a structurally valid object whose embedded trace is empty
+    (steps=[]) with an annotation like {"kind": "error", "message":
+    "Unsupported gate 'p'"}. The Python call does NOT raise in that case, so
+    we have to inspect diagnostics + annotations explicitly.
+    """
+    errors: list[str] = []
+
+    diagnostics = getattr(result, "diagnostics", None) or []
+    for diag in diagnostics:
+        if getattr(diag, "code", "").lower().startswith(("error", "fatal")):
+            errors.append(f"{diag.code}: {diag.message}")
+
+    trace_payload = getattr(result, "trace", None)
+    annotations = getattr(trace_payload, "annotations", None) or []
+    for ann in annotations:
+        kind = getattr(ann, "kind", None) or (ann.get("kind") if isinstance(ann, dict) else None)
+        if str(kind).lower() == "error":
+            msg = getattr(ann, "message", None) or (ann.get("message") if isinstance(ann, dict) else "")
+            errors.append(str(msg))
+
+    steps = getattr(trace_payload, "steps", None)
+    if steps is not None and len(steps) == 0:
+        errors.append("trace contains no steps")
+
+    if errors:
+        print("[QAVE] Trace is unusable — skipping artifact reporting:")
+        for line in errors:
+            print(f"         · {line}")
+        print(
+            "         Hint: ensure the circuit only uses QAVE's basis "
+            f"({', '.join(QAVE_BASIS_GATES)})."
+        )
+        return False
+    return True
 
 
 def _locate_qave_sketch():
