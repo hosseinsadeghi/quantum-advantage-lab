@@ -8,32 +8,32 @@
 }
 
 :root {
-  --bg-primary: #0a0a1a;
-  --bg-secondary: #111128;
-  --bg-card: #161636;
-  --bg-card-hover: #1c1c44;
-  --bg-surface: #1e1e3f;
-  --border-color: #2a2a5a;
-  --border-active: #4361ee;
-  --text-primary: #e8e8f0;
-  --text-secondary: #9898b8;
-  --text-muted: #6868a0;
-  --primary: #4361ee;
-  --primary-dim: #3451cc;
-  --accent: #00d4ff;
-  --accent-dim: rgba(0, 212, 255, 0.15);
-  --quantum-color: #00d4ff;
-  --classical-color: #ff6b6b;
-  --success: #22c55e;
-  --warning: #eab308;
+  --bg-primary: #f3f6f4;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ebf0ed;
+  --bg-surface: #f7faf8;
+  --border-color: #dde5e0;
+  --border-active: #0f766e;
+  --text-primary: #1f2a26;
+  --text-secondary: #4a5751;
+  --text-muted: #6a7770;
+  --primary: #0f766e;
+  --primary-dim: #115e57;
+  --accent: #0f766e;
+  --accent-dim: rgba(15, 118, 110, 0.12);
+  --quantum-color: #0e7490;
+  --classical-color: #ea580c;
+  --success: #16a34a;
+  --warning: #ca8a04;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow-quantum: 0 0 20px rgba(0, 212, 255, 0.15);
-  --shadow-glow-classical: 0 0 20px rgba(255, 107, 107, 0.15);
+  --shadow-card: 0 1px 3px rgba(16, 24, 40, 0.06), 0 4px 12px rgba(16, 24, 40, 0.04);
+  --shadow-glow-quantum: 0 0 20px rgba(14, 116, 144, 0.12);
+  --shadow-glow-classical: 0 0 20px rgba(234, 88, 12, 0.12);
   --sidebar-width: 260px;
 }
 
@@ -262,9 +262,59 @@ body {
   transform: translateX(16px);
 }
 
+.toggle.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .toggle-text {
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.param-select {
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.param-select:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.param-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.param-warning {
+  margin: 6px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--warning, #e0a32e);
+}
+
+.exec-banner {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.exec-banner--warn {
+  background: rgba(224, 163, 46, 0.12);
+  border-color: var(--warning, #e0a32e);
+  color: var(--warning, #e0a32e);
 }
 
 .start-btn {
@@ -275,7 +325,7 @@ body {
   width: calc(100% - 24px);
   margin: 20px 12px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, var(--primary), #5a7dff);
+  background: linear-gradient(135deg, var(--primary), #14b8a6);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -288,7 +338,7 @@ body {
 }
 
 .start-btn:hover:not(:disabled) {
-  box-shadow: 0 4px 16px rgba(67, 97, 238, 0.4);
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.4);
   filter: brightness(1.1);
 }
 
@@ -336,23 +386,23 @@ body {
 }
 
 .status-bar.status-setup {
-  background: linear-gradient(90deg, rgba(67, 97, 238, 0.06), rgba(0, 212, 255, 0.03));
-  border-bottom-color: rgba(67, 97, 238, 0.12);
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.06), rgba(14, 116, 144, 0.03));
+  border-bottom-color: rgba(15, 118, 110, 0.12);
 }
 
 .status-bar.status-running {
-  background: linear-gradient(90deg, rgba(67, 97, 238, 0.1), rgba(67, 97, 238, 0.04));
-  border-bottom-color: rgba(67, 97, 238, 0.2);
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.1), rgba(15, 118, 110, 0.04));
+  border-bottom-color: rgba(15, 118, 110, 0.2);
 }
 
 .status-bar.status-quantum-wins {
-  background: linear-gradient(90deg, rgba(0, 212, 255, 0.08), rgba(67, 97, 238, 0.06));
-  border-bottom-color: rgba(0, 212, 255, 0.2);
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.08), rgba(15, 118, 110, 0.06));
+  border-bottom-color: rgba(14, 116, 144, 0.2);
 }
 
 .status-bar.status-classical-wins {
-  background: rgba(255, 107, 107, 0.06);
-  border-bottom-color: rgba(255, 107, 107, 0.2);
+  background: rgba(234, 88, 12, 0.06);
+  border-bottom-color: rgba(234, 88, 12, 0.2);
 }
 
 .status-bar.status-complete {
@@ -368,7 +418,7 @@ body {
   padding: 2px 8px;
   border-radius: 3px;
   white-space: nowrap;
-  background: rgba(67, 97, 238, 0.15);
+  background: rgba(15, 118, 110, 0.15);
   color: var(--primary);
 }
 
@@ -376,7 +426,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(67, 97, 238, 0.2);
+  background: rgba(15, 118, 110, 0.2);
 }
 
 .status-tag.winner-tag {
@@ -440,11 +490,11 @@ body {
 }
 
 .race-panel.quantum.winner {
-  box-shadow: inset 0 0 30px rgba(0, 212, 255, 0.06);
+  box-shadow: inset 0 0 30px rgba(14, 116, 144, 0.06);
 }
 
 .race-panel.classical.winner {
-  box-shadow: inset 0 0 30px rgba(255, 107, 107, 0.06);
+  box-shadow: inset 0 0 30px rgba(234, 88, 12, 0.06);
 }
 
 .panel-header {
@@ -493,7 +543,7 @@ body {
 }
 
 .status-badge.running {
-  background: rgba(67, 97, 238, 0.2);
+  background: rgba(15, 118, 110, 0.2);
   color: var(--primary);
 }
 
@@ -857,7 +907,7 @@ body {
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 6px rgba(14, 116, 144, 0.4);
 }
 
 .timeline-track input[type="range"]::-moz-range-thumb {
@@ -996,9 +1046,9 @@ body {
 
 .help-tip-popup {
   position: absolute;
-  left: 20px;
-  top: -6px;
-  width: 220px;
+  left: 0;
+  top: 22px;
+  width: 200px;
   padding: 8px 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -1010,15 +1060,15 @@ body {
   text-transform: none;
   letter-spacing: 0;
   white-space: normal;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.12);
   z-index: 100;
   pointer-events: none;
   animation: tooltipIn 0.15s ease;
 }
 
 @keyframes tooltipIn {
-  from { opacity: 0; transform: translateX(-4px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ===== Speed Control ===== */
@@ -1070,4 +1120,160 @@ body {
 .param-label-text {
   display: inline-flex;
   align-items: center;
+}
+
+/* ===== Mobile menu button (hidden on desktop) ===== */
+.mobile-menu-btn {
+  display: none;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  margin-right: 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.mobile-menu-btn:active,
+.mobile-menu-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+.mobile-menu-btn span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+}
+
+/* ===== Mobile backdrop (hidden on desktop) ===== */
+.mobile-backdrop {
+  display: none;
+}
+
+/* ===== Mobile layout ===== */
+@media (max-width: 768px) {
+  /* Allow the page to scroll vertically — desktop locks everything to viewport,
+     which clips stacked panels on phones. */
+  html, body, #root {
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .main-content {
+    overflow: visible;
+  }
+  .race-area {
+    overflow: visible;
+    height: auto;
+  }
+  .race-panel {
+    overflow: visible;
+    min-height: 380px;
+  }
+  .panel-visualization {
+    overflow: visible;
+    min-height: 240px;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(31, 42, 38, 0.45);
+    z-index: 40;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .app-shell.mobile-sidebar-open .mobile-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Sidebar slides in/out of view */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    min-width: 280px;
+    max-width: 86vw;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 0 0 24px rgba(31, 42, 38, 0.15);
+  }
+  .app-shell.mobile-sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Race area: panels stack, annotations rail stays at right (36px) */
+  .race-area {
+    position: relative;
+  }
+  .race-panels {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+  .race-panel.quantum {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  /* Annotations: only overlay when explicitly opened.
+     position: fixed so it stays pinned to viewport even when the page scrolls. */
+  .annotations-sidebar.open {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: 100%;
+    min-width: 100%;
+    box-shadow: -4px 0 16px rgba(31, 42, 38, 0.15);
+  }
+
+  /* Status bar sticks to the top so menu + status are always reachable while
+     scrolling the panels. */
+  .status-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  /* Status bar text truncation + tighter padding */
+  .status-bar {
+    padding-left: 10px;
+    padding-right: 10px;
+    gap: 8px;
+  }
+  .status-bar .status-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
 }

@@ -122,7 +122,7 @@ def test_get_backend_routes_to_ionq_emulator():
     """High-level ``get_backend`` hands back the IonQ emulator + noise_model kwarg."""
     from backend.quantum.provider import get_backend
 
-    backend, run_kwargs = get_backend(
+    backend, run_kwargs, info = get_backend(
         use_simulator=False, use_qpu=False, noise_model="forte-1"
     )
     # qiskit-ionq backend class name contains 'IonQ'
@@ -130,6 +130,8 @@ def test_get_backend_routes_to_ionq_emulator():
         f"expected an IonQ backend, got {type(backend).__name__}"
     )
     assert run_kwargs == {"noise_model": "forte-1"}
+    assert info["actual"] == "ionq_simulator"
+    assert info["fell_back"] is False
 
 
 # ---------------------------------------------------------------------------

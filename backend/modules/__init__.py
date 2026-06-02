@@ -10,10 +10,10 @@ from backend.modules.vqe_race import VQERace
 from backend.modules.simulation_race import SimulationRace
 
 MODULES: dict[str, type] = {
+    "hamiltonian_sim": SimulationRace,
     "grovers_search": SearchRace,
     "quantum_walks": WalkRace,
     "vqe": VQERace,
-    "hamiltonian_sim": SimulationRace,
 }
 
 __all__ = ["MODULES", "SearchRace", "WalkRace", "VQERace", "SimulationRace"]

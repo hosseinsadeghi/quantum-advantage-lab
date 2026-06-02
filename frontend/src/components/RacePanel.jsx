@@ -66,8 +66,8 @@ export default function RacePanel({
           <div className={`solver-dot`} style={{
             background: isQuantum ? "var(--quantum-color)" : "var(--classical-color)",
             boxShadow: isQuantum
-              ? "0 0 8px rgba(0,212,255,0.5)"
-              : "0 0 8px rgba(255,107,107,0.5)",
+              ? "0 0 8px rgba(14,116,144,0.5)"
+              : "0 0 8px rgba(234,88,12,0.5)",
           }} />
           <span className="solver-name">{label} Solver</span>
         </div>
@@ -129,16 +129,6 @@ export default function RacePanel({
         )}
       </div>
 
-      {md && (
-        <div className="panel-metadata">
-          {Object.entries(md).map(([k, v]) => (
-            <div className="meta-item" key={k}>
-              <span className="meta-key">{k.replace(/_/g, " ")}:</span>
-              <span className="meta-val">{typeof v === "number" ? v.toFixed(4) : String(v)}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

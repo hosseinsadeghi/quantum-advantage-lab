@@ -17,7 +17,9 @@ def test_modules_registry_loads():
 def test_provider_aer_backend_available():
     from backend.quantum.provider import get_backend
 
-    backend, run_kwargs = get_backend(use_simulator=True)
+    backend, run_kwargs, info = get_backend(use_simulator=True)
     assert backend is not None
     assert run_kwargs == {}
+    assert info["actual"] == "aer"
+    assert info["fell_back"] is False
     assert "simulator" in backend.name.lower() or "basic" in backend.name.lower()

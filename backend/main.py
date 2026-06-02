@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,15 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+# Load a local .env (IONQ_API_KEY, CORS_ORIGINS, DISABLE_QPU, ...) for dev runs.
+# In Docker/Railway these come from the environment, so a missing .env is fine.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
 
 from backend.modules import MODULES
 
@@ -29,11 +39,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS -- wide open for development
+# CORS — driven by CORS_ORIGINS env (comma-separated, or "*" for open dev).
+_cors_raw = os.environ.get("CORS_ORIGINS", "*").strip()
+_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -67,6 +79,14 @@ async def health_check():
 async def list_modules():
     """Return metadata for every available race module."""
     return [cls().info() for cls in MODULES.values()]
+
+
+@app.get("/api/backends/qpu")
+async def qpu_availability():
+    """Live availability for each real-hardware IonQ QPU (for the solver picker)."""
+    from backend.quantum.provider import get_qpu_availability
+
+    return get_qpu_availability()
 
 
 @app.get("/api/modules/{module_id}/defaults")

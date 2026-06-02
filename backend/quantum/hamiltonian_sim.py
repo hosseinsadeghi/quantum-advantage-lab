@@ -261,6 +261,7 @@ def run_simulation(
     use_simulator: bool = True,
     use_qpu: bool = False,
     noise_model: str = "forte-1",
+    qpu_name: str = "qpu.forte-1",
     shots: int = 1024,
     initial_state: str | None = None,
     seed_simulator: int | None = None,
@@ -370,17 +371,18 @@ def run_simulation(
     if not use_simulator:
         full_circuit = transpile_for_ionq(full_circuit)
 
-    backend, run_kwargs = get_backend(
+    backend, run_kwargs, execution = get_backend(
         use_simulator=use_simulator,
         use_qpu=use_qpu,
         noise_model=noise_model,
+        qpu_name=qpu_name,
     )
     if seed_simulator is not None and use_simulator:
         run_kwargs = {**run_kwargs, "seed_simulator": seed_simulator}
     transpiled = transpile(full_circuit, backend=backend)
     job = backend.run(transpiled, shots=shots, **run_kwargs)
     result = job.result()
-    counts = result.get_counts()
+    counts = {str(k): int(v) for k, v in result.get_counts().items()}
 
     final_fidelity = steps[-1]["fidelity_vs_exact"] if steps else 1.0
 
@@ -392,6 +394,7 @@ def run_simulation(
     return {
         "steps": steps,
         "final_result": {
+            "execution": execution,
             "measured_counts": counts,
             "final_fidelity": final_fidelity,
             "total_time": time,

@@ -12,7 +12,7 @@ from backend.classical.matrix_exp import run_classical_simulation
 # as a model coupling constant (J, h, Jx, Jy, Jz, ...) and forwarded through.
 _RACE_PARAM_KEYS = frozenset({
     "n_qubits", "model", "time", "n_steps",
-    "use_simulator", "use_qpu", "noise_model",
+    "use_simulator", "use_qpu", "noise_model", "qpu_name",
     "shots", "initial_state", "seed_simulator",
 })
 
@@ -50,6 +50,7 @@ class SimulationRace(RaceModule):
             use_simulator=params.get("use_simulator", True),
             use_qpu=params.get("use_qpu", False),
             noise_model=params.get("noise_model", "forte-1"),
+            qpu_name=params.get("qpu_name", "qpu.forte-1"),
             shots=params.get("shots", 1024),
             initial_state=params.get("initial_state"),
             seed_simulator=params.get("seed_simulator"),

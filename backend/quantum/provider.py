@@ -47,16 +47,31 @@ class MSGate(Gate):
 # Backend helpers
 # ---------------------------------------------------------------------------
 
-# Default QPU name. Aria devices are retired; Forte-1 is the only production
-# IonQ QPU as of 2026. Override via ``qpu_name`` when a new device comes online.
+# Default QPU name. Aria devices are retired; the Forte family is current.
+# ``qpu.forte-1`` is the shared production device; ``qpu.forte-enterprise-1`` is
+# a reserved-capacity device. Both are real hardware (billable).
 DEFAULT_QPU_NAME = "qpu.forte-1"
 DEFAULT_NOISE_MODEL = "forte-1"
+
+# Real-hardware QPUs surfaced in the UI as selectable solvers.
+IONQ_QPU_NAMES = ("qpu.forte-1", "qpu.forte-enterprise-1")
+
+IONQ_API_BASE = "https://api.ionq.co/v0.3"
+
+
+def _ionq_api_key() -> str | None:
+    """Return the IonQ API key to use, preferring the QPU-entitled key.
+
+    ``IONQ_API_KEY_QAL`` is the Quantum Advantage Lab key with real-hardware
+    access; ``IONQ_API_KEY`` is the fallback (typically simulator/emulator only).
+    """
+    return os.environ.get("IONQ_API_KEY_QAL") or os.environ.get("IONQ_API_KEY")
 
 
 def _get_ionq_backend(backend_name: str = "ionq_simulator") -> Any:
     """Attempt to obtain an IonQ backend via qiskit_ionq.
 
-    Requires the ``IONQ_API_KEY`` environment variable to be set.
+    Requires an IonQ API key (``IONQ_API_KEY_QAL`` or ``IONQ_API_KEY``).
 
     Parameters
     ----------
@@ -64,15 +79,15 @@ def _get_ionq_backend(backend_name: str = "ionq_simulator") -> Any:
         IonQ backend identifier. Common values:
         ``"ionq_simulator"`` (cloud simulator, free),
         ``"qpu.forte-1"`` (production QPU),
-        ``"qpu.forte-enterprise-1"`` (reserved-customer QPU).
+        ``"qpu.forte-enterprise-1"`` (reserved-capacity QPU).
 
     Returns
     -------
     Backend instance or *None* when the provider is unavailable.
     """
-    api_key = os.environ.get("IONQ_API_KEY")
+    api_key = _ionq_api_key()
     if not api_key:
-        logger.warning("IONQ_API_KEY not set -- cannot initialise IonQ provider")
+        logger.warning("No IonQ API key set -- cannot initialise IonQ provider")
         return None
 
     try:
@@ -88,6 +103,67 @@ def _get_ionq_backend(backend_name: str = "ionq_simulator") -> Any:
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise IonQ backend %r: %s", backend_name, exc)
         return None
+
+
+def get_qpu_availability() -> dict[str, dict[str, Any]]:
+    """Return live availability for each real-hardware QPU in ``IONQ_QPU_NAMES``.
+
+    Queries IonQ's ``/backends`` endpoint once and maps each device to::
+
+        {"available": bool, "status": str, "has_access": bool, "reason": str}
+
+    ``available`` is the gate for selecting the device: the device must be
+    operational (``status == "available"``) *and* the active key must be
+    entitled to submit (``has_access``). On any error (no key, package/network
+    failure) every QPU is reported unavailable with a ``reason``.
+    """
+    import json
+    import urllib.request
+
+    def _all(reason: str) -> dict[str, dict[str, Any]]:
+        return {
+            name: {"available": False, "status": "unknown",
+                   "has_access": False, "reason": reason}
+            for name in IONQ_QPU_NAMES
+        }
+
+    api_key = _ionq_api_key()
+    if not api_key:
+        return _all("no IonQ API key configured")
+
+    try:
+        req = urllib.request.Request(
+            f"{IONQ_API_BASE}/backends",
+            headers={"Authorization": f"apiKey {api_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+            data = json.load(resp)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not fetch IonQ backend availability: %s", exc)
+        return _all(f"availability query failed: {exc}")
+
+    by_name = {b.get("backend"): b for b in data if isinstance(b, dict)}
+    out: dict[str, dict[str, Any]] = {}
+    for name in IONQ_QPU_NAMES:
+        info = by_name.get(name, {})
+        status = info.get("status", "unknown")
+        has_access = bool(info.get("has_access", False))
+        available = status == "available" and has_access
+        if not info:
+            reason = "device not listed by IonQ"
+        elif status != "available":
+            reason = f"device {status}"
+        elif not has_access:
+            reason = "account lacks access to this device"
+        else:
+            reason = ""
+        out[name] = {
+            "available": available,
+            "status": status,
+            "has_access": has_access,
+            "reason": reason,
+        }
+    return out
 
 
 def _get_aer_backend() -> Any:
@@ -189,8 +265,8 @@ def get_backend(
     use_qpu: bool = False,
     noise_model: str = DEFAULT_NOISE_MODEL,
     qpu_name: str = DEFAULT_QPU_NAME,
-) -> tuple[Any, dict[str, Any]]:
-    """Return ``(backend, run_kwargs)`` for circuit execution.
+) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    """Return ``(backend, run_kwargs, info)`` for circuit execution.
 
     Three routes, resolved in order:
 
@@ -203,31 +279,67 @@ def get_backend(
     * ``use_qpu=True`` → real IonQ QPU (``qpu_name``, default ``"qpu.forte-1"``).
       Billable — gate only behind an explicit user action.
 
-    If ``qiskit-ionq`` or ``IONQ_API_KEY`` is missing, the function falls back
-    to Aer with a warning.
+    ``info`` always reports what the caller asked for vs. what actually ran, so
+    a silent Aer fallback (missing key, package, or IonQ outage) is visible to
+    the UI instead of masquerading as a successful IonQ run::
 
-    The returned ``run_kwargs`` dict should be splatted into ``backend.run``::
+        {"requested": "qpu.forte-1", "actual": "aer",
+         "fell_back": True, "message": "No IonQ API key — ran on local Aer simulator."}
 
-        backend, run_kwargs = get_backend(...)
-        job = backend.run(circuit, shots=shots, **run_kwargs)
-
-    Only IonQ emulator runs populate ``run_kwargs`` (with ``noise_model``);
-    Aer and QPU runs get an empty dict.
+    If ``qiskit-ionq`` or an IonQ API key is missing, the function falls back to
+    Aer (``fell_back=True``).
     """
+    if use_qpu:
+        requested = qpu_name
+    elif not use_simulator:
+        requested = "ionq_simulator"
+    else:
+        requested = "aer"
+
+    def _aer(message: str = "") -> tuple[Any, dict[str, Any], dict[str, Any]]:
+        return _get_aer_backend(), {}, {
+            "requested": requested,
+            "actual": "aer",
+            "fell_back": requested != "aer",
+            "message": message,
+        }
+
+    # Public-deploy kill switch: when DISABLE_QPU is truthy, force Aer regardless
+    # of caller intent. Set on the Railway service; unset locally so users with
+    # their own API key can still hit the real QPU.
+    if os.environ.get("DISABLE_QPU", "").lower() in ("1", "true", "yes"):
+        if requested != "aer":
+            logger.info("DISABLE_QPU set -- coercing to local Aer simulator")
+        return _aer("QPU/IonQ disabled on this deployment — ran on local Aer simulator.")
+
+    if requested == "aer":
+        return _aer()
+
+    no_key = not _ionq_api_key()
     if use_qpu:
         qpu = _get_ionq_backend(qpu_name)
         if qpu is not None:
-            return _wrap_run_for_usage_logging(qpu), {}
+            info = {"requested": requested, "actual": qpu_name,
+                    "fell_back": False, "message": ""}
+            return _wrap_run_for_usage_logging(qpu), {}, info
         logger.warning("IonQ QPU %r unavailable -- falling back to Aer", qpu_name)
-        return _get_aer_backend(), {}
+        return _aer(
+            f"IonQ QPU {qpu_name!r} unavailable "
+            f"({'no API key' if no_key else 'provider/package error'}) "
+            "— ran on local Aer simulator instead."
+        )
 
-    if not use_simulator:
-        emu = _get_ionq_backend("ionq_simulator")
-        if emu is not None:
-            return emu, {"noise_model": noise_model}
-        logger.info("IonQ emulator unavailable -- falling back to Aer")
-
-    return _get_aer_backend(), {}
+    emu = _get_ionq_backend("ionq_simulator")
+    if emu is not None:
+        info = {"requested": requested, "actual": "ionq_simulator",
+                "fell_back": False, "message": ""}
+        return emu, {"noise_model": noise_model}, info
+    logger.info("IonQ emulator unavailable -- falling back to Aer")
+    return _aer(
+        "IonQ emulator unavailable "
+        f"({'no API key' if no_key else 'provider/package error'}) "
+        "— ran on local Aer simulator instead."
+    )
 
 
 # ---------------------------------------------------------------------------

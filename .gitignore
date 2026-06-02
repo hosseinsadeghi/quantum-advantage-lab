@@ -24,3 +24,7 @@ data/
 
 # uv
 .uv-cache/
+.vercel/
+
+# Local run/result cache
+.cache/

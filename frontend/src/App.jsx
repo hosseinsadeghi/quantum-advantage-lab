@@ -8,6 +8,13 @@ import "./App.css";
 
 const RACE_STATES = { IDLE: "idle", RUNNING: "running", COMPLETE: "complete" };
 
+// Empty string → same-origin (local docker-compose / nginx proxy).
+// Set VITE_BACKEND_URL at build time (Vercel env) to point at Railway.
+const API_BASE = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
+const WS_BASE = API_BASE
+  ? API_BASE.replace(/^http/, "ws")
+  : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+
 // Default animation duration for the full race (seconds).
 // The actual per-step delay = BASE_DURATION / totalSteps.
 const BASE_DURATION_S = 6;
@@ -38,9 +45,10 @@ export default function App() {
   const [classicalResult, setClassicalResult] = useState(null);
   const [viewIndex, setViewIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeAnnoTab, setActiveAnnoTab] = useState("insights");
+  const [activeAnnoTab, setActiveAnnoTab] = useState(null);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [raceComplete, setRaceComplete] = useState(false); // backend done, drip may still be running
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const wsRef = useRef(null);
   const playTimerRef = useRef(null);
@@ -67,6 +75,21 @@ export default function App() {
     ? (initialState?.quantumResult || null) : quantumResult;
   const displayClassicalResult = raceState === RACE_STATES.IDLE
     ? (initialState?.classicalResult || null) : classicalResult;
+
+  // Where the quantum circuit actually executed. The WS path nests this under
+  // `final_result`, the REST fallback under `result`; surface either so a
+  // silent Aer fallback (bad key, IonQ outage) is visible instead of hidden.
+  const execution =
+    displayQuantumResult?.final_result?.execution ||
+    displayQuantumResult?.result?.execution ||
+    null;
+  const EXEC_LABELS = {
+    aer: "local simulator (Aer)",
+    ionq_simulator: "IonQ cloud emulator",
+  };
+  const execActualLabel = execution
+    ? (EXEC_LABELS[execution.actual] || execution.actual)
+    : null;
 
   // --- Drip-feed animation ---
   // When backend data arrives, gradually reveal steps over BASE_DURATION_S / speedMultiplier.
@@ -104,7 +127,7 @@ export default function App() {
 
   // --- Fetch modules ---
   useEffect(() => {
-    fetch("/api/modules")
+    fetch(`${API_BASE}/api/modules`)
       .then((r) => r.json())
       .then((data) => {
         setModules(data);
@@ -133,10 +156,15 @@ export default function App() {
     setConfig(mod.default_params || {});
     setRaceState(RACE_STATES.IDLE);
     resetRace();
+    setMobileSidebarOpen(false);
   }, [resetRace]);
 
   const handleConfigChange = useCallback((key, value) => {
-    setConfig((prev) => ({ ...prev, [key]: value }));
+    setConfig((prev) =>
+      key && typeof key === "object"
+        ? { ...prev, ...key }
+        : { ...prev, [key]: value }
+    );
     if (raceState !== RACE_STATES.RUNNING) {
       setRaceState(RACE_STATES.IDLE);
       resetRace();
@@ -151,8 +179,7 @@ export default function App() {
 
     if (wsRef.current) wsRef.current.close();
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/race/${selectedModule.id}`;
+    const wsUrl = `${WS_BASE}/ws/race/${selectedModule.id}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -180,7 +207,7 @@ export default function App() {
     };
 
     ws.onerror = () => {
-      fetch(`/api/race/${selectedModule.id}`, {
+      fetch(`${API_BASE}/api/race/${selectedModule.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ params: config }),
@@ -296,7 +323,13 @@ export default function App() {
       rawQuantumSteps.length, rawClassicalSteps.length]);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${mobileSidebarOpen ? "mobile-sidebar-open" : ""}`}>
+      {/* Backdrop, visible on mobile when drawer is open */}
+      <div
+        className="mobile-backdrop"
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+
       {/* Left sidebar */}
       <nav className="sidebar">
         <div className="sidebar-brand">
@@ -358,6 +391,15 @@ export default function App() {
       <main className="main-content">
         {/* Fixed-height status bar — always rendered, content transitions */}
         <div className={`status-bar status-${statusBarContent.mode}`}>
+          <button
+            className="mobile-menu-btn"
+            aria-label="Open menu"
+            onClick={() => setMobileSidebarOpen((v) => !v)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           {statusBarContent.mode === "setup" && (
             <span className="status-tag">Problem Setup</span>
           )}
@@ -369,6 +411,14 @@ export default function App() {
           )}
           <span className="status-text">{statusBarContent.text}</span>
         </div>
+
+        {execution && (
+          <div className={`exec-banner ${execution.fell_back ? "exec-banner--warn" : ""}`}>
+            {execution.fell_back
+              ? `⚠ ${execution.message || `Requested ${execution.requested} but ran on ${execActualLabel}.`}`
+              : `Executed on ${execActualLabel}. Jobs appear under the IonQ account that owns the configured API key.`}
+          </div>
+        )}
 
         {selectedModule && (
           <>
