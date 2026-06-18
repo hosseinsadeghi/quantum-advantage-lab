@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Trotterization methods — a verbal comparison</title>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      packages: { '[+]': ['ams'] }
+    },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --bg: #ffffff;
+    --card: #f6f8fa;
+    --border: #d0d7de;
+    --accent: #0969da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #e6edf3;
+      --muted: #8d96a0;
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --accent: #2f81f7;
+    }
+  }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--fg);
+    background: var(--bg);
+    max-width: 880px;
+    margin: 2.5rem auto 6rem;
+    padding: 0 1.5rem;
+  }
+  h1 { font-size: 1.9rem; border-bottom: 1px solid var(--border); padding-bottom: .35em; }
+  h2 { font-size: 1.35rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.08rem; margin-top: 1.6rem; }
+  p, li { margin: .5rem 0; }
+  code, .mono {
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .93em;
+  }
+  code {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 0.08em 0.38em;
+    border-radius: 4px;
+  }
+  .lede { color: var(--muted); font-style: italic; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.2rem 0;
+    font-size: .95em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: .5rem .7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--card); font-weight: 600; }
+  td:first-child { font-weight: 500; }
+  .callout {
+    background: var(--card);
+    border-left: 3px solid var(--accent);
+    padding: .8rem 1rem;
+    margin: 1.2rem 0;
+    border-radius: 4px;
+  }
+  .formula-block {
+    margin: .6rem 0 1rem;
+    overflow-x: auto;
+  }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .9em;
+  }
+</style>
+</head>
+<body>
+
+<h1>Trotterization methods — a verbal comparison</h1>
+<p class="lede">
+  Three natural choices in the product-formula family for simulating
+  $U(t) = e^{-iHt}$ with $H = \sum_k c_k P_k$:
+  first-order Lie&ndash;Trotter, symmetric (second-order) Suzuki&ndash;Trotter,
+  and higher-order recursive Suzuki.
+</p>
+
+<h2>1. First-order Lie&ndash;Trotter</h2>
+
+<div class="formula-block">
+$$
+U_1(\Delta t) \;=\; \prod_k e^{-i c_k P_k \Delta t}, \qquad
+U(t) \;\approx\; \bigl[\, U_1(\Delta t) \,\bigr]^{r}, \qquad \Delta t = t/r
+$$
+</div>
+
+<ul>
+  <li><strong>Error per step:</strong> $O(\Delta t^2)$, driven by the leading commutator $[H_A, H_B]$.</li>
+  <li><strong>Total error for $r$ steps:</strong> $O(t^2 / r)$ &mdash; to halve the error you <em>double</em> the circuit depth.</li>
+  <li><strong>Cost per step:</strong> one rotation per Pauli term. Cheapest possible.</li>
+  <li><strong>Asymmetric:</strong> reversing the term order changes the state at $O(\Delta t^2)$, which is the tell-tale sign of the bias.</li>
+  <li><strong>When to use:</strong> pedagogy, short-time dynamics, when depth is the binding constraint and you can tolerate percent-level fidelity.
+    This is what the Quantum Advantage Lab ships today in
+    <code>build_trotter_circuit</code> (<code>backend/quantum/hamiltonian_sim.py:175</code>).</li>
+</ul>
+
+<h2>2. Symmetric second-order Suzuki&ndash;Trotter ("Strang splitting")</h2>
+
+<div class="formula-block">
+$$
+U_2(\Delta t) \;=\;
+\underbrace{\prod_k e^{-i c_k P_k \Delta t / 2}}_{\text{forward sweep}}
+\;\cdot\;
+\underbrace{\prod_k e^{-i c_k P_k \Delta t / 2}}_{\text{reverse sweep}}
+$$
+</div>
+
+<ul>
+  <li><strong>Error per step:</strong> $O(\Delta t^3)$. The $[H_A, H_B]$ commutator <em>cancels by symmetry</em>; only the nested commutators $[H_A,[H_A,H_B]]$ and $[H_B,[H_A,H_B]]$ survive.</li>
+  <li><strong>Total error for $r$ steps:</strong> $O(t^3 / r^2)$. To halve the error, you need only $\sqrt{2} \approx 1.41\times$ more depth &mdash; a big win over first-order.</li>
+  <li><strong>Cost per step:</strong> nominally $2\times$ the first-order cost, but adjacent half-steps across step boundaries fuse, so asymptotic overhead on the interior is closer to $1\times$.</li>
+  <li><strong>Time-reversal symmetric:</strong> $U_2(\Delta t)^\dagger = U_2(-\Delta t)$. This yields much better energy conservation in long-time dynamics &mdash; it matters a lot for quench / thermalisation studies (Heyl, Polkovnikov, Kehrein, <em>PRL</em> <b>110</b>, 135704 (2013)).</li>
+  <li><strong>When to use:</strong> essentially always, once you are past the toy-demo stage. Qiskit exposes it as <code>SuzukiTrotter(order=2, reps=r)</code> &mdash; the natural drop-in upgrade for Phase 2.</li>
+</ul>
+
+<h2>3. Higher-order recursive Suzuki ($2k$-th order)</h2>
+
+<p>
+  Suzuki's construction defines $U_{2k}$ recursively from $U_{2k-2}$ using five fractional time-steps with specially tuned coefficients
+  $s_k = 1 / \bigl(4 - 4^{1/(2k-1)}\bigr)$:
+</p>
+
+<div class="formula-block">
+$$
+U_{2k}(\Delta t) \;=\;
+U_{2k-2}(s_k\Delta t)^{2}\;
+U_{2k-2}\!\bigl((1 - 4 s_k)\Delta t\bigr)\;
+U_{2k-2}(s_k\Delta t)^{2}
+$$
+</div>
+
+<ul>
+  <li><strong>Error per step:</strong> $O(\Delta t^{2k+1})$. For $r$ steps, $O\!\bigl(t^{2k+1} / r^{2k}\bigr)$.</li>
+  <li><strong>Cost per step:</strong> $5^{k-1}\times$ the second-order cost. The prefactor explodes: $5\times$ at order 4, $25\times$ at order 6, $125\times$ at order 8.</li>
+  <li><strong>Crossover:</strong> beats lower orders only when the target error is tight enough that the per-step accuracy gain outweighs the $5^{k-1}$ depth factor. For chemistry-scale simulations at long times, that crossover comes quickly; for short-time NISQ demos it almost never does.</li>
+  <li><strong>Rigorous constants:</strong> Childs, Su, Tran, Wiebe, Zhu, <em>PRX</em> <b>11</b>, 011020 (2021) &mdash; "Theory of Trotter Error with Commutator Scaling" &mdash; gives the tight bound in terms of nested commutator norms $\sum_{i_1<i_2<\cdots} \|[H_{i_1},[H_{i_2},\ldots]]\|$, which tells you which order $k$ is optimal for a given $(t, \epsilon)$.</li>
+  <li><strong>When to use:</strong> tight-tolerance, long-time quantum chemistry, and fault-tolerant simulation. Rarely the right answer on NISQ hardware &mdash; the $5^{k-1}$ depth blow-up makes device noise the dominant error long before you benefit from the tighter analytical bound.</li>
+</ul>
+
+<h2>Summary</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Lie&ndash;Trotter (1st)</th>
+      <th>Symmetric (2nd)</th>
+      <th>Suzuki $2k$-th</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Error scaling</td>
+      <td>$O(t^2/r)$</td>
+      <td>$O(t^3/r^2)$</td>
+      <td>$O\!\bigl(t^{2k+1}/r^{2k}\bigr)$</td>
+    </tr>
+    <tr>
+      <td>Cost per step (vs 1st)</td>
+      <td>$1\times$</td>
+      <td>$\sim 1\text{--}2\times$</td>
+      <td>$5^{k-1}\times$</td>
+    </tr>
+    <tr>
+      <td>Best for</td>
+      <td>Demos, short $t$</td>
+      <td><strong>The default</strong></td>
+      <td>Long $t$, tight $\epsilon$, FTQC</td>
+    </tr>
+    <tr>
+      <td>Time-reversal symmetric?</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Qiskit API</td>
+      <td><code>LieTrotter(reps=r)</code></td>
+      <td><code>SuzukiTrotter(order=2, reps=r)</code></td>
+      <td><code>SuzukiTrotter(order=2k, reps=r)</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Rule of thumb.</strong>
+  For target error $\epsilon$, gate cost scales roughly as
+  $\,t \cdot (t/\epsilon)^{1/(2k)}\,$ with order $2k$.
+  The exponent shrinks fast, so going 1st&nbsp;&rarr;&nbsp;2nd is the biggest single win.
+  Going 2nd&nbsp;&rarr;&nbsp;4th only pays off when $t/\epsilon$ is very large.
+</div>
+
+<h2>Implication for this project</h2>
+
+<p>
+  For the Quantum Advantage Lab's <em>Hamiltonian Simulation</em> race module,
+  stay with Lie&ndash;Trotter for the "explain the idea" demo and pedagogy,
+  but add <code>SuzukiTrotter(order=2)</code> as a dropdown option in Phase&nbsp;2.
+  The side-by-side $1/r$ vs $1/r^2$ convergence plot &mdash; quadratic vs cubic decay of $1 - \mathrm{fidelity}$ &mdash;
+  makes for a striking visualisation of the accuracy/depth trade-off and
+  connects cleanly to the Childs et&nbsp;al. commutator-scaling benchmark already queued for that phase.
+</p>
+
+<footer>
+  Sources:
+  Lloyd, <em>Science</em> <b>273</b>, 1073 (1996);
+  Suzuki, <em>Phys. Lett. A</em> <b>146</b>, 319 (1990);
+  Childs, Su, Tran, Wiebe, Zhu, <em>PRX</em> <b>11</b>, 011020 (2021);
+  Nielsen &amp; Chuang, <em>Quantum Computation and Quantum Information</em>, &sect;4.7.2;
+  Qiskit <code>qiskit.synthesis.LieTrotter</code> / <code>SuzukiTrotter</code>.
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QPU Hardware Log · Quantum Advantage Lab</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --panel: #131a2c;
+      --panel-2: #1a2238;
+      --border: #26304d;
+      --text: #e6ebf5;
+      --muted: #8a97b4;
+      --accent: #5eead4;
+      --accent-2: #818cf8;
+      --warn: #fbbf24;
+      --bad: #f87171;
+      --good: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 80% -10%, #16203a 0%, var(--bg) 55%);
+      color: var(--text);
+      font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); }
+    header {
+      display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+      padding: 24px 28px 8px;
+    }
+    header h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+    header .sub { color: var(--muted); font-size: 13px; }
+    header .spacer { flex: 1; }
+    button.refresh {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px;
+    }
+    button.refresh:hover { border-color: var(--accent); color: var(--accent); }
+    .wrap { padding: 12px 28px 48px; max-width: 1200px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 14px 0 26px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+    }
+    .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+    .card .value { font-size: 26px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .card .value small { font-size: 14px; color: var(--muted); font-weight: 400; }
+    section h2 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin: 8px 0 12px; }
+    .keybar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0 0; }
+    .keyrow { display: flex; align-items: center; gap: 12px; }
+    #keySelect { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px; min-width: 220px; }
+    .keymsg { font-size: 13px; color: var(--muted); }
+    .keymsg.ok { color: var(--good); }
+    .keymsg.err { color: var(--bad); }
+    .keynote { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; }
+    .jobs-table { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    th, td { text-align: left; padding: 11px 14px; font-variant-numeric: tabular-nums; }
+    thead th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+    tbody tr { border-top: 1px solid var(--border); cursor: pointer; }
+    tbody tr.job-row:hover { background: var(--panel-2); }
+    tbody tr.detail-row > td { background: #0d1322; padding: 0; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.done { background: rgba(74,222,128,.14); color: var(--good); }
+    .pill.failed { background: rgba(248,113,113,.14); color: var(--bad); }
+    .pill.other { background: rgba(129,140,248,.14); color: var(--accent-2); }
+    .pill.qpu { background: rgba(94,234,212,.12); color: var(--accent); }
+    .caret { display: inline-block; width: 12px; color: var(--muted); transition: transform .15s; }
+    tr.open .caret { transform: rotate(90deg); }
+    .detail { padding: 18px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .detail h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px; }
+    .kv .k { color: var(--muted); }
+    .kv .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+    .bars { display: flex; flex-direction: column; gap: 5px; }
+    .bar-row { display: grid; grid-template-columns: 90px 1fr 56px; align-items: center; gap: 10px; font-size: 12px; }
+    .bar-track { background: #0a0f1d; border-radius: 5px; height: 16px; overflow: hidden; border: 1px solid var(--border); }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .muted { color: var(--muted); }
+    .empty, .error { padding: 40px; text-align: center; color: var(--muted); }
+    .error { color: var(--bad); }
+    @media (max-width: 720px) { .detail { grid-template-columns: 1fr; } .hide-sm { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚛ QPU Hardware Log</h1>
+    <span class="sub">Real IonQ device runs recorded in <span class="mono">.cache/qpu_usage.jsonl</span></span>
+    <span class="spacer"></span>
+    <button class="refresh" onclick="load()">↻ Refresh</button>
+  </header>
+  <div class="wrap">
+    <section class="keybar">
+      <h2>Active IonQ API key</h2>
+      <div class="keyrow">
+        <select id="keySelect" onchange="selectKey(this.value)"></select>
+        <span id="keyMsg" class="keymsg"></span>
+      </div>
+      <p class="keynote">
+        Selects which IonQ account subsequent QPU runs use. Switching keys never
+        affects cached results — a cached run replays with any key. Keys are read
+        from the environment (<span class="mono">IONQ_API_KEY</span>,
+        <span class="mono">IONQ_API_KEY_&lt;NAME&gt;</span>); values are never shown.
+      </p>
+    </section>
+    <div class="cards" id="cards"></div>
+    <section>
+      <h2>Jobs</h2>
+      <div class="jobs-table">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:18px"></th>
+              <th>Submitted</th>
+              <th>Job ID</th>
+              <th>Backend</th>
+              <th class="hide-sm">Qubits</th>
+              <th class="hide-sm">Depth</th>
+              <th>Shots</th>
+              <th>Status</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const fmtTs = (unix) => {
+      if (!unix) return "—";
+      const d = new Date(unix * 1000);
+      return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    };
+    const fmtMoney = (x) => (x == null ? "—" : "$" + Number(x).toFixed(4));
+    const fmtNum = (x) => (x == null ? "—" : Number(x).toLocaleString());
+    const fmtSecs = (s) => (s == null ? "—" : Number(s) >= 60 ? (Number(s) / 60).toFixed(1) + " min" : Number(s).toFixed(1) + " s");
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    function statusPill(job) {
+      const s = (job.status || job.event || "—").toLowerCase();
+      const cls = s === "done" || s === "completed" ? "done" : (s === "failed" || s === "canceled" || s === "cancelled") ? "failed" : "other";
+      return `<span class="pill ${cls}">${esc(s)}</span>`;
+    }
+
+    function card(label, value, sub) {
+      return `<div class="card"><div class="label">${esc(label)}</div><div class="value">${value}${sub ? ` <small>${esc(sub)}</small>` : ""}</div></div>`;
+    }
+
+    function gateBars(gc) {
+      const entries = Object.entries(gc || {}).filter(([k]) => k !== "barrier").sort((a, b) => b[1] - a[1]);
+      if (!entries.length) return '<span class="muted">no gate data</span>';
+      const max = Math.max(...entries.map(([, v]) => v));
+      return `<div class="bars">${entries.map(([k, v]) =>
+        `<div class="bar-row"><span class="mono">${esc(k)}</span><span class="bar-track"><span class="bar-fill" style="width:${(v / max * 100).toFixed(1)}%"></span></span><span class="mono">${fmtNum(v)}</span></div>`
+      ).join("")}</div>`;
+    }
+
+    function detail(job) {
+      const c = job.circuit || {};
+      const r = job.result_summary || {};
+      const kv = (k, v) => `<span class="k">${esc(k)}</span><span class="v">${v}</span>`;
+      const left = `
+        <div>
+          <h3>Job</h3>
+          <div class="kv">
+            ${kv("Job ID", esc(job.job_id))}
+            ${kv("Backend", esc(job.backend))}
+            ${kv("Submitted", fmtTs(job.submitted_ts || job.timestamp_unix))}
+            ${kv("Shots", fmtNum(job.shots))}
+            ${kv("Status", esc(job.status || job.event))}
+            ${kv("Wall time", fmtSecs(job.wall_time_seconds))}
+            ${kv("Exec time", fmtSecs(job.execution_time_seconds))}
+            ${kv("Cost (USD)", fmtMoney(job.cost_usd))}
+            ${kv("Predicted cost", fmtMoney(job.predicted_cost_usd))}
+          </div>
+          <h3 style="margin-top:16px">Circuit</h3>
+          <div class="kv">
+            ${kv("Qubits", fmtNum(c.n_qubits))}
+            ${kv("Depth", fmtNum(c.depth))}
+            ${kv("Total gates", fmtNum(c.total_gates))}
+            ${kv("1-qubit gates", fmtNum(c.one_qubit_gates))}
+            ${kv("2-qubit gates", fmtNum(c.two_qubit_gates))}
+            ${kv("Distinct outcomes", fmtNum(r.distinct_outcomes))}
+            ${kv("Top state", r.top_state ? `<span class="mono">${esc(r.top_state)}</span> (${fmtNum(r.top_count)})` : "—")}
+          </div>
+        </div>`;
+      const right = `<div><h3>Gate counts</h3>${gateBars(c.gate_counts)}</div>`;
+      return `<div class="detail">${left}${right}</div>`;
+    }
+
+    function render(data) {
+      const s = data.summary || {};
+      const jobs = data.jobs || [];
+      const be = Object.keys(s.by_backend || {}).length;
+      document.getElementById("cards").innerHTML = [
+        card("Hardware jobs", fmtNum(s.total_jobs), `${fmtNum(s.completed_jobs)} completed`),
+        card("Total shots", fmtNum(s.total_shots)),
+        card("Total cost", s.total_cost_usd ? fmtMoney(s.total_cost_usd) : "—", "USD"),
+        card("Exec time", fmtSecs(s.total_execution_time_seconds)),
+        card("Devices", fmtNum(be)),
+      ].join("");
+
+      const tbody = document.getElementById("rows");
+      if (!jobs.length) {
+        tbody.innerHTML = `<tr><td colspan="9"><div class="empty">No hardware jobs logged yet. Run a race with <span class="mono">use_qpu: true</span> to populate the log.</div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = jobs.map((job, i) => {
+        const c = job.circuit || {};
+        const row = `
+          <tr class="job-row" data-i="${i}" onclick="toggle(${i})">
+            <td><span class="caret">▶</span></td>
+            <td>${fmtTs(job.submitted_ts || job.timestamp_unix)}</td>
+            <td class="mono">${esc((job.job_id || "—").slice(0, 13))}</td>
+            <td><span class="pill qpu">${esc(job.backend || "—")}</span></td>
+            <td class="hide-sm">${fmtNum(c.n_qubits)}</td>
+            <td class="hide-sm">${fmtNum(c.depth)}</td>
+            <td>${fmtNum(job.shots)}</td>
+            <td>${statusPill(job)}</td>
+            <td>${fmtMoney(job.cost_usd)}</td>
+          </tr>
+          <tr class="detail-row" id="detail-${i}" style="display:none"><td colspan="9">${detail(job)}</td></tr>`;
+        return row;
+      }).join("");
+    }
+
+    function toggle(i) {
+      const dr = document.getElementById("detail-" + i);
+      const jr = document.querySelector(`tr.job-row[data-i="${i}"]`);
+      const open = dr.style.display !== "none";
+      dr.style.display = open ? "none" : "";
+      jr.classList.toggle("open", !open);
+    }
+
+    async function load() {
+      try {
+        const res = await fetch("/api/qpu/usage");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        render(await res.json());
+      } catch (e) {
+        document.getElementById("rows").innerHTML = `<tr><td colspan="9"><div class="error">Failed to load: ${esc(e.message)}</div></td></tr>`;
+      }
+    }
+    function renderKeys(data) {
+      const sel = document.getElementById("keySelect");
+      const keys = data.keys || [];
+      if (!keys.length) {
+        sel.innerHTML = `<option>(no IonQ keys configured)</option>`;
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
+      sel.innerHTML = keys.map((k) =>
+        `<option value="${esc(k.name)}" ${k.active ? "selected" : ""}>${esc(k.name)} (${esc(k.fingerprint)})</option>`
+      ).join("");
+    }
+
+    async function loadKeys() {
+      try {
+        const res = await fetch("/api/keys");
+        if (res.ok) renderKeys(await res.json());
+      } catch (e) { /* leave as-is */ }
+    }
+
+    async function selectKey(name) {
+      const msg = document.getElementById("keyMsg");
+      msg.className = "keymsg";
+      msg.textContent = "switching…";
+      try {
+        const res = await fetch("/api/keys/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || ("HTTP " + res.status));
+        msg.className = "keymsg ok";
+        msg.textContent = `✓ active key: ${d.active}`;
+        renderKeys(d);
+      } catch (e) {
+        msg.className = "keymsg err";
+        msg.textContent = "✖ " + e.message;
+      }
+    }
+
+    loadKeys();
+    load();
+  </script>
+</body>
+</html>

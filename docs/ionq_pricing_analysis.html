@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IonQ QPU pricing &amp; qubit-scaling analysis</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #1a1a1a;
+    --muted: #555;
+    --accent: #1f4eaf;
+    --rule: #d8d8d8;
+    --code-bg: #f1f1f1;
+    --table-head: #eceff3;
+    --table-stripe: #f6f7f9;
+    --callout-bg: #fff8e1;
+    --callout-border: #e6c774;
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 960px;
+    margin: 2.5rem auto;
+    padding: 0 1.25rem;
+  }
+  h1 { font-size: 1.75rem; margin-bottom: 0.2rem; }
+  h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  .subtitle { color: var(--muted); margin-top: 0; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.94rem; }
+  th, td { border: 1px solid var(--rule); padding: 0.45rem 0.65rem; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); font-weight: 600; }
+  tbody tr:nth-child(even) { background: var(--table-stripe); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .callout {
+    background: var(--callout-bg);
+    border-left: 4px solid var(--callout-border);
+    padding: 0.6rem 0.9rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+  .meta { color: var(--muted); font-size: 0.88rem; }
+  a { color: var(--accent); }
+  ul.tight li { margin: 0.15rem 0; }
+</style>
+</head>
+<body>
+
+<h1>IonQ QPU pricing &amp; qubit-scaling analysis</h1>
+<p class="subtitle">Quantum Advantage Lab — access-path and budget assessment</p>
+<p class="meta">Captured 2026-04-18. Pricing data is fetched from vendor pages and can drift — verify before committing spend.</p>
+
+<div class="callout">
+<strong>TL;DR.</strong>
+Aria-1 and Aria-2 QPUs are retired; their calibration snapshots remain as selectable emulator profiles on <code>ionq_simulator</code>. The only production IonQ QPU is <strong>Forte-1</strong> (36 qubits). Pricing splits into two models: <strong>AWS Braket</strong> uses flat per-shot billing; <strong>Azure Quantum</strong> and <strong>IonQ direct cloud</strong> both use a gate-shot (AQT) model with per-program minimums. For the depth/width regime this project targets (N=20–30, Trotter depth 8–16), Braket is consistently cheaper per run; the AQT model is favorable only for small, shot-heavy circuits.
+</div>
+
+<h2>1. Device availability</h2>
+<table>
+  <thead><tr><th>Device</th><th>Status</th><th>Availability</th></tr></thead>
+  <tbody>
+    <tr><td>IonQ Forte-1 (36q)</td><td>Production QPU</td><td>Braket, Azure, IonQ direct</td></tr>
+    <tr><td>IonQ Forte Enterprise 1 (36q)</td><td>Reserved-customer QPU</td><td>Azure, IonQ direct</td></tr>
+    <tr><td>IonQ Aria-1 / Aria-2 (25q)</td><td>Retired (QPU)</td><td>Calibration snapshots retained as emulator profiles on <code>ionq_simulator</code></td></tr>
+    <tr><td>IonQ simulator (<code>ionq_simulator</code>)</td><td>Free, all profiles</td><td><code>ideal</code>, <code>forte-1</code>, <code>aria-1</code>, <code>aria-2</code>, and any other published emulator profiles (see <a href="https://cloud.ionq.com/backends/simulators">cloud.ionq.com/backends/simulators</a>)</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Pricing by access path (Forte-1)</h2>
+
+<h3>AWS Braket — flat shot pricing</h3>
+<table>
+  <thead><tr><th>Item</th><th>Rate</th></tr></thead>
+  <tbody>
+    <tr><td>Per-task fee</td><td>$0.30 USD</td></tr>
+    <tr><td>Per-shot fee</td><td>$0.08 USD</td></tr>
+    <tr><td>Reservation</td><td>$7,000 USD / hour</td></tr>
+    <tr><td>Minimum shots / task</td><td>2,500 when error mitigation is enabled</td></tr>
+  </tbody>
+</table>
+
+<h3>Azure Quantum and IonQ direct — gate-shot (AQT) pricing</h3>
+<p>Both paths charge <em>Azure Quantum Tokens</em> (AQT) for usage:</p>
+<pre><code>AQT = m + 0.000220·(N_1q·C) + 0.000975·(N_2q·C)</code></pre>
+<p class="meta">m is the per-program minimum ($168.195 with error mitigation on / $25.7899 off for Forte-1; Aria-1 uses $97.50 / $12.4166). N_1q and N_2q are the 1- and 2-qubit gate counts; C is the shot count. Multi-controlled 2q gates are billed as <code>6·(N−2)</code> 2q gates; 1q gates are internally priced as 0.225 of a 2q gate.</p>
+<table>
+  <thead><tr><th>Device</th><th>1q gate-shot</th><th>2q gate-shot</th><th>Per-program min (mitig on)</th><th>Per-program min (mitig off)</th></tr></thead>
+  <tbody>
+    <tr><td>Forte-1 / Forte Enterprise 1</td><td>$0.0001645</td><td>$0.001121</td><td>$168.195</td><td>$25.7899</td></tr>
+    <tr><td>Aria-1 (emulator profile remains)</td><td>$0.000220</td><td>$0.000975</td><td>$97.50</td><td>$12.4166</td></tr>
+  </tbody>
+</table>
+<p>Azure subscription plan: <strong>Aria-Forte, $25,000 / month</strong> including unlimited access with PAYG overage. The IonQ direct cloud offers equivalent PAYG and monthly-subscription tiers; exact numbers are quote-based for direct customers.</p>
+
+<h2>3. Scaling estimate for our Trotter circuits</h2>
+<p>Assumptions: TFIM/Heisenberg first-order Trotter on N qubits, r steps. Native-compiled to the IonQ basis. Rough per-step cost: N 1q-rotations + ~(N−1) ZZ-interactions compiled to 2 native 2q gates each (upper bound; some may reduce to 1). Shot count fixed at 1000.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>N qubits</th><th>r steps</th>
+      <th class="num">1q gate-shots</th><th class="num">2q gate-shots</th>
+      <th class="num">Forte direct / Azure<br>(mitigation off)</th>
+      <th class="num">AWS Braket flat</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">10</td><td class="num">8</td><td class="num">160,000</td><td class="num">144,000</td><td class="num">$187.74</td><td class="num">$80.30</td></tr>
+    <tr><td class="num">15</td><td class="num">8</td><td class="num">240,000</td><td class="num">224,000</td><td class="num">$290.58</td><td class="num">$80.30</td></tr>
+    <tr><td class="num">20</td><td class="num">8</td><td class="num">320,000</td><td class="num">304,000</td><td class="num">$393.42</td><td class="num">$80.30</td></tr>
+    <tr><td class="num">25</td><td class="num">8</td><td class="num">400,000</td><td class="num">384,000</td><td class="num">$496.26</td><td class="num">$80.30</td></tr>
+    <tr><td class="num">30</td><td class="num">8</td><td class="num">480,000</td><td class="num">464,000</td><td class="num">$599.10</td><td class="num">$80.30</td></tr>
+    <tr><td class="num">30</td><td class="num">16</td><td class="num">960,000</td><td class="num">928,000</td><td class="num">$1,198.21</td><td class="num">$80.30</td></tr>
+  </tbody>
+</table>
+
+<p class="meta">Braket per-run cost is flat because it bills per shot regardless of depth; 2,500-shot minimum pushes a mitigation-on run to ~$200.30. Gate-shot pricing punishes depth linearly — the N=30 r=16 circuit is ~15× more expensive than N=30 r=8 per AQT, but identical on Braket.</p>
+
+<h2>4. Where classical starts to struggle</h2>
+<p>Exact statevector matrix-exponentiation (our current <code>classical/matrix_exp.py</code> baseline):</p>
+<table>
+  <thead><tr><th class="num">N qubits</th><th>Statevector RAM (complex128)</th><th>Hardware needed</th></tr></thead>
+  <tbody>
+    <tr><td class="num">20</td><td>16 MB</td><td>Laptop, trivial</td></tr>
+    <tr><td class="num">25</td><td>512 MB</td><td>Laptop OK, visibly slower</td></tr>
+    <tr><td class="num">28</td><td>4 GB</td><td>Workstation</td></tr>
+    <tr><td class="num">30</td><td>16 GB</td><td>Workstation limit</td></tr>
+    <tr><td class="num">33</td><td>128 GB</td><td>Server</td></tr>
+    <tr><td class="num">36</td><td>1 TB</td><td>Cluster (matches Forte-1's 36-qubit ceiling)</td></tr>
+  </tbody>
+</table>
+<p>Runtime grows worse than memory (naïve <code>expm</code> is O(2<sup>3N</sup>)). <strong>N≈25–30 is the visible "classical is losing" regime</strong> for dense Hamiltonian evolution on commodity hardware. Short-shallow circuits can still be simulated at higher N with MPS, but the long-time quench and deep-Trotter runs we want to showcase are precisely where MPS bond dimension blows up — favorable for the demo.</p>
+
+<h2>5. Budget feasibility at ~$50k</h2>
+<table>
+  <thead><tr><th>Scenario</th><th class="num">Cost / run</th><th class="num">Runs affordable</th></tr></thead>
+  <tbody>
+    <tr><td>Direct / Azure PAYG, N=25, r=8, 1000 shots, mitig off</td><td class="num">~$500</td><td class="num">~100</td></tr>
+    <tr><td>Direct / Azure PAYG, N=30, r=16, 1000 shots, mitig off</td><td class="num">~$1,200</td><td class="num">~40</td></tr>
+    <tr><td>AWS Braket, any size, 1000 shots</td><td class="num">$80</td><td class="num">~620</td></tr>
+    <tr><td>AWS Braket, any size, 2500 shots + mitigation</td><td class="num">$200</td><td class="num">~250</td></tr>
+    <tr><td>Azure Aria-Forte subscription (monthly)</td><td class="num">$25,000/mo</td><td class="num">2 months of unlimited</td></tr>
+  </tbody>
+</table>
+<p>A demo run list of ~20 "hero" QPU runs plus unlimited emulator work spends well under $25k on any path. The subscription plan only breaks even versus PAYG above roughly 900 mitigation-off program runs per month.</p>
+
+<h2>6. Recommendations</h2>
+<ul class="tight">
+  <li><strong>Default user-facing runs to the emulator.</strong> The free <code>ionq_simulator</code> with <code>noise_model</code> in <code>{ideal, forte-1, aria-1, aria-2, &hellip;}</code> covers all correctness, benchmarking, and UX testing at zero cost.</li>
+  <li><strong>Target N=20–30 in UI defaults</strong>, not N=3–4. Reserve low-N as a "quick demo" preset only — it's trivially classical and does not support the quantum-advantage narrative.</li>
+  <li><strong>Bias toward AWS Braket</strong> for hero QPU runs if access is granted there: flat-shot pricing is dramatically cheaper for the deep, wide circuits we'll showcase.</li>
+  <li><strong>Gate the QPU path behind an explicit UI action</strong> ("Run on hardware") with a pre-flight cost estimate. Keep <code>use_qpu=False</code> as the default for all API calls.</li>
+  <li><strong>Add a cost estimator</strong> to <code>scripts/ionq_run_hamiltonian.py</code> that reports <code>(N_1q, N_2q, shots)</code> and the computed AQT / Braket cost before any submission.</li>
+  <li><strong>Keep the provider plumbing path-agnostic:</strong> backend name is a string, noise model is a string, <code>use_qpu</code> is a boolean. This makes switching between Braket, Azure Quantum, and IonQ direct a one-line change once the credit path is confirmed.</li>
+</ul>
+
+<h2>Sources</h2>
+<ul class="tight">
+  <li><a href="https://aws.amazon.com/braket/pricing/">AWS Braket pricing</a></li>
+  <li><a href="https://learn.microsoft.com/en-us/azure/quantum/pricing">Azure Quantum pricing (IonQ section)</a></li>
+  <li><a href="https://www.ionq.com/quantum-cloud">IonQ Quantum Cloud</a></li>
+  <li><a href="https://cloud.ionq.com/backends/simulators">IonQ simulator backends (emulator profile list)</a></li>
+  <li><a href="https://www.ionq.com/quantum-systems/forte">IonQ Forte-1 system page</a></li>
+</ul>
+
+</body>
+</html>

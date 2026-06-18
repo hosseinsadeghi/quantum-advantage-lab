@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Circuit Depth, Native Gates, and the IonQ vs Heavy-Hex Comparison</title>
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --paper: #fffdf8;
+        --ink: #1f2933;
+        --muted: #5b6670;
+        --line: #d7d0c3;
+        --accent: #0f766e;
+        --accent-soft: rgba(15, 118, 110, 0.08);
+        --accent-2: #9a3412;
+        --code: #f3efe7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 28rem),
+          linear-gradient(180deg, #f8f5ef 0%, var(--bg) 100%);
+        color: var(--ink);
+        font: 16px/1.62 Georgia, "Times New Roman", serif;
+      }
+
+      main {
+        width: min(980px, calc(100vw - 2rem));
+        margin: 2rem auto 3rem;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 2.5rem;
+        box-shadow: 0 16px 50px rgba(31, 41, 51, 0.08);
+      }
+
+      h1, h2, h3 {
+        line-height: 1.2;
+        margin: 0 0 0.8rem;
+        font-weight: 700;
+      }
+
+      h1 {
+        font-size: 2.2rem;
+        letter-spacing: -0.02em;
+      }
+
+      h2 {
+        margin-top: 2.3rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+        font-size: 1.4rem;
+      }
+
+      h3 {
+        margin-top: 1.4rem;
+        font-size: 1.08rem;
+      }
+
+      p, li {
+        color: var(--ink);
+      }
+
+      .lead {
+        font-size: 1.1rem;
+        color: var(--muted);
+        max-width: 52rem;
+      }
+
+      .callout {
+        margin: 1.4rem 0;
+        padding: 1rem 1.1rem;
+        border-left: 4px solid var(--accent);
+        background: var(--accent-soft);
+        border-radius: 10px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0 1.3rem;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .card h3 {
+        margin-top: 0;
+      }
+
+      code, pre {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.95em;
+      }
+
+      code {
+        background: var(--code);
+        padding: 0.1rem 0.3rem;
+        border-radius: 4px;
+      }
+
+      pre {
+        margin: 0.9rem 0 1.1rem;
+        padding: 1rem;
+        overflow-x: auto;
+        background: var(--code);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0 1.4rem;
+      }
+
+      th, td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.8rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      th {
+        font-size: 0.92rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--muted);
+      }
+
+      ul {
+        padding-left: 1.2rem;
+      }
+
+      .formula {
+        margin: 0.8rem 0 1rem;
+        padding: 0.9rem 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fcfaf5;
+        font-style: italic;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 0.96rem;
+      }
+
+      .accent {
+        color: var(--accent-2);
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Circuit Depth, Native Gates, and the IonQ vs Heavy-Hex Comparison</h1>
+      <p class="lead">
+        This note explains what circuit depth means in a hardware-aware setting, why depth depends
+        on the target native gate set, and how the comparison between an IonQ-style all-to-all
+        target and a heavy-hex target is constructed. The goal is not a code walkthrough. The goal
+        is to make the physics and the compiler choices legible.
+      </p>
+
+      <div class="callout">
+        The central point is simple: <strong>compiled depth is not a hardware-independent quantity</strong>.
+        A fixed logical time-evolution circuit can acquire different total depth on different targets
+        even when the two-qubit interaction count is identical. That happens because the compiler is
+        decomposing the same logical unitary into different native gate alphabets.
+      </div>
+
+      <h2>1. What “Depth” Means Here</h2>
+      <p>
+        Depth is the number of sequential gate layers after the circuit has been expressed in a
+        chosen basis and, if necessary, routed onto a chosen connectivity graph. In practice, depth
+        depends on three distinct ingredients:
+      </p>
+      <div class="grid">
+        <section class="card">
+          <h3>Logical structure</h3>
+          <p>
+            The physics chooses the Hamiltonian terms and the Trotter order. This fixes the abstract
+            quantum operations that must be implemented.
+          </p>
+        </section>
+        <section class="card">
+          <h3>Native gate set</h3>
+          <p>
+            The same logical operation may decompose into different sequences of one- and two-qubit
+            gates depending on the hardware basis.
+          </p>
+        </section>
+        <section class="card">
+          <h3>Connectivity and routing</h3>
+          <p>
+            If the hardware graph does not directly support a required interaction, the compiler may
+            add SWAPs or alternative rewrites, increasing depth and two-qubit cost.
+          </p>
+        </section>
+      </div>
+
+      <p>
+        For that reason, the phrase <em>“IonQ has higher depth”</em> must always be unpacked into:
+      </p>
+      <ul>
+        <li>higher <strong>logical</strong> depth, or</li>
+        <li>higher <strong>native compiled</strong> depth, or</li>
+        <li>higher <strong>two-qubit</strong> depth, or</li>
+        <li>higher <strong>routing</strong> overhead.</li>
+      </ul>
+
+      <p>
+        Those are not interchangeable. In particular, a backend can have the same two-qubit gate
+        count and zero SWAP overhead, yet still show larger total depth because it uses more
+        one-qubit basis-change layers around the entangling operations.
+      </p>
+
+      <h2>2. The Physics Being Simulated</h2>
+      <p>
+        The comparison is built around digital Hamiltonian simulation using a first-order
+        Lie-Trotter product formula. The code supports transverse-field Ising and Heisenberg-type
+        models, with interaction graphs such as nearest-neighbor chain, all-to-all, and power-law
+        couplings.
+      </p>
+
+      <div class="formula">
+        U(t) = e<sup>-iHt</sup> ≈ ( Π<sub>k</sub> e<sup>-iH<sub>k</sub> Δt</sup> )<sup>r</sup>,
+        where Δt = t / r.
+      </div>
+
+      <p>
+        The important implication is that the physics first produces a list of Pauli-string terms.
+        Only after that does hardware enter the picture. The comparison is therefore:
+      </p>
+      <ol>
+        <li>build one logical Trotter circuit for the same Hamiltonian,</li>
+        <li>transpile it to an IonQ-compatible native basis,</li>
+        <li>transpile the same logical circuit to a heavy-hex target,</li>
+        <li>measure depth and gate statistics on the resulting compiled circuits.</li>
+      </ol>
+
+      <h2>3. How a Pauli Term Becomes Gates</h2>
+      <p>
+        Each term <code>exp(-i c Δt P)</code> is implemented by a standard Pauli-rotation pattern:
+      </p>
+      <ul>
+        <li>basis change to map <code>X</code> or <code>Y</code> support into a <code>Z</code>-frame,</li>
+        <li>a CNOT staircase that accumulates parity,</li>
+        <li>a single <code>Rz</code> rotation on the terminal active qubit,</li>
+        <li>uncomputation of the staircase and basis change.</li>
+      </ul>
+
+      <pre><code>for coeff, pauli_str in hamiltonian_terms:
+    apply basis changes
+    apply a CNOT chain across active qubits
+    apply Rz(angle)
+    undo the CNOT chain
+    undo basis changes</code></pre>
+
+      <p>
+        From a physics perspective, this is still the same Trotterized evolution. From a hardware
+        perspective, it is only an intermediate representation. The transpiler then rewrites that
+        circuit into the native basis of the chosen target.
+      </p>
+
+      <h2>4. Why Native Gates Change Depth</h2>
+      <p>
+        In this comparison, the IonQ-oriented target is compiled to a basis equivalent to
+        <code>{rx, ry, rz, rxx}</code>, reflecting an all-to-all trapped-ion style entangling model.
+        The heavy-hex target is compiled to a basis equivalent to
+        <code>{rz, sx, x, cx, swap}</code>, reflecting a superconducting architecture with constrained
+        connectivity.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Target</th>
+            <th>Native-style basis used in the comparison</th>
+            <th>Compiler implication</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>IonQ-style all-to-all</td>
+            <td><code>rx</code>, <code>ry</code>, <code>rz</code>, <code>rxx</code></td>
+            <td>Routing pressure is minimized, but single-qubit basis-change layers may expand total depth.</td>
+          </tr>
+          <tr>
+            <td>Heavy-hex</td>
+            <td><code>rz</code>, <code>sx</code>, <code>x</code>, <code>cx</code>, <code>swap</code></td>
+            <td>Basis conversion can be compact, but nonlocal interactions may require explicit routing.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        This is why <span class="accent">total depth alone is not a pure connectivity metric</span>.
+        A higher IonQ depth does not automatically mean the circuit is harder for IonQ in the sense
+        that matters physically. It may simply mean that the native representation carries more
+        sequential one-qubit structure.
+      </p>
+
+      <div class="callout">
+        If two targets have the same two-qubit gate count and the same two-qubit depth, but one has
+        larger total depth, the most natural interpretation is <strong>basis-decomposition overhead</strong>,
+        not routing overhead.
+      </div>
+
+      <h2>5. How the Comparison Is Actually Constructed</h2>
+      <p>
+        Conceptually, the comparison pipeline is:
+      </p>
+
+      <pre><code>logical_circuit = build_problem_circuit(...)
+ionq_circuit = transpile_for_ionq(logical_circuit, optimization_level=2)
+heavy_hex_circuit = transpile_for_heavy_hex(logical_circuit, optimization_level=2)
+
+ionq_summary = connectivity_circuit_summary(ionq_circuit)
+heavy_hex_summary = connectivity_circuit_summary(heavy_hex_circuit)</code></pre>
+
+      <p>
+        The same logical circuit is used on both sides. No physics is changed between the two
+        branches. Only the target basis and connectivity assumptions are changed.
+      </p>
+
+      <h3>Metrics extracted from each compiled circuit</h3>
+      <ul>
+        <li><strong>Depth</strong>: total compiled circuit depth.</li>
+        <li><strong>Two-qubit gates</strong>: count of gates such as <code>cx</code>, <code>rxx</code>, <code>swap</code>, and related entangling operations.</li>
+        <li><strong>SWAP count</strong>: explicit routing overhead exposed as inserted SWAP gates.</li>
+        <li><strong>Two-qubit depth</strong>: number of layers that contain any two-qubit operation.</li>
+      </ul>
+
+      <p>
+        Two-qubit depth is especially useful because it isolates the sequential entangling structure
+        from the surrounding one-qubit dressing.
+      </p>
+
+      <h2>6. Key Qiskit Functions and the Parameters That Matter</h2>
+      <p>
+        The following are the important library-level operations. This is the shortest accurate list
+        for understanding the comparison.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Function</th>
+            <th>Library</th>
+            <th>Important parameters</th>
+            <th>Role in the comparison</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>QuantumCircuit(...)</code></td>
+            <td>Qiskit</td>
+            <td><code>n_qubits</code>, classical bits</td>
+            <td>Creates the logical Trotter circuit and the measured execution circuit.</td>
+          </tr>
+          <tr>
+            <td><code>QuantumCircuit.rx</code>, <code>ry</code>, <code>rz</code>, <code>cx</code>, <code>h</code>, <code>x</code>, <code>measure</code></td>
+            <td>Qiskit</td>
+            <td>rotation angle, qubit indices</td>
+            <td>Builds the explicit Pauli-term decomposition before backend-specific transpilation.</td>
+          </tr>
+          <tr>
+            <td><code>transpile(...)</code></td>
+            <td>Qiskit</td>
+            <td><code>basis_gates</code>, <code>coupling_map</code>, <code>optimization_level</code>, <code>layout_method</code>, <code>routing_method</code></td>
+            <td>Rewrites the same logical circuit into the target basis and topology.</td>
+          </tr>
+          <tr>
+            <td><code>CouplingMap.from_heavy_hex(distance)</code></td>
+            <td>Qiskit transpiler</td>
+            <td><code>distance</code></td>
+            <td>Builds the heavy-hex connectivity graph used as the routing constraint.</td>
+          </tr>
+          <tr>
+            <td><code>QuantumCircuit.depth()</code></td>
+            <td>Qiskit</td>
+            <td>optional <code>filter_function</code></td>
+            <td>Computes either total depth or, with a filter, depth restricted to two-qubit layers.</td>
+          </tr>
+          <tr>
+            <td><code>QuantumCircuit.count_ops()</code></td>
+            <td>Qiskit</td>
+            <td>none</td>
+            <td>Returns the gate histogram used to derive two-qubit counts and SWAP counts.</td>
+          </tr>
+          <tr>
+            <td><code>circuit_to_dag(...)</code></td>
+            <td>Qiskit converters</td>
+            <td>circuit</td>
+            <td>Fallback path for layer-by-layer two-qubit depth analysis if direct filtered depth is unavailable.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>The two transpilation calls that define the hardware comparison</h3>
+      <pre><code>transpile(
+    circuit,
+    basis_gates=["rx", "ry", "rz", "rxx", "id", "measure"],
+    optimization_level=2
+)</code></pre>
+
+      <pre><code>transpile(
+    circuit,
+    basis_gates=["rz", "sx", "x", "cx", "swap", "measure"],
+    coupling_map=CouplingMap.from_heavy_hex(distance),
+    optimization_level=2,
+    layout_method="sabre",
+    routing_method="sabre"
+)</code></pre>
+
+      <p class="small">
+        The IonQ-style branch is unconstrained in connectivity. The heavy-hex branch is explicitly
+        constrained and routed.
+      </p>
+
+      <h2>7. How to Read the Output Correctly</h2>
+      <p>
+        The most robust interpretation is metric-by-metric rather than headline-by-headline:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>If you observe</th>
+            <th>Most likely interpretation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>higher total depth, same two-qubit count, same SWAP count</td>
+            <td>native basis decomposition is different; not evidence of worse connectivity</td>
+          </tr>
+          <tr>
+            <td>higher SWAP count</td>
+            <td>routing overhead is being paid explicitly</td>
+          </tr>
+          <tr>
+            <td>higher two-qubit depth</td>
+            <td>the entangling schedule itself has become more sequential</td>
+          </tr>
+          <tr>
+            <td>higher two-qubit count and higher SWAP count together</td>
+            <td>routing is not just scheduling the same entanglers; it is adding entangling work</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        For a nearest-neighbor chain, it is entirely plausible to see:
+      </p>
+      <ul>
+        <li>zero SWAPs on both targets,</li>
+        <li>the same two-qubit gate count on both targets,</li>
+        <li>yet a larger IonQ total depth.</li>
+      </ul>
+
+      <p>
+        In that regime, the difference is telling you more about how the circuit was expressed in
+        <code>{rx, ry, rz, rxx}</code> versus <code>{rz, sx, x, cx}</code> than about the physical
+        interaction graph.
+      </p>
+
+      <h2>8. The Right Mental Model</h2>
+      <p>
+        The clean mental model is:
+      </p>
+      <ul>
+        <li>the Hamiltonian and Trotter step count define the quantum workload,</li>
+        <li>the native gate set defines how that workload is spelled out physically,</li>
+        <li>the coupling map defines whether extra routing must be inserted,</li>
+        <li>the reported depth is the combined result of all three.</li>
+      </ul>
+
+      <div class="callout">
+        A hardware-aware depth comparison is meaningful only when paired with gate counts and a
+        statement of the native basis. Otherwise, one is comparing two compiler dialects rather than
+        two physical implementations of the same logical circuit.
+      </div>
+
+      <h2>9. Bottom Line</h2>
+      <p>
+        This comparison is not asking which platform has the universally smaller depth. It is asking
+        how the same Trotterized quantum evolution is rewritten under two different hardware models.
+        The IonQ-style compilation removes connectivity constraints, but the compiled circuit still
+        reflects the native gate alphabet chosen for trapped-ion execution. Therefore, a larger IonQ
+        total depth can be consistent with no routing disadvantage at all.
+      </p>
+      <p class="small">
+        The most decision-relevant quantities are usually: two-qubit gate count, two-qubit depth,
+        and SWAP count. Total depth remains useful, but only when interpreted through the lens of the
+        target native basis.
+      </p>
+    </main>
+  </body>
+</html>
