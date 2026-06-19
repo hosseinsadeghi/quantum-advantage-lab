@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import warnings
 from typing import Any
 
 from qiskit import QuantumCircuit, transpile
@@ -17,6 +18,15 @@ from qiskit.circuit import Gate
 from backend import qpu_usage
 
 logger = logging.getLogger(__name__)
+
+warnings.filterwarnings(
+    "ignore",
+    message=(
+        "No gate definition for PauliEvolution can be found and is being "
+        "excluded from the generated target.*"
+    ),
+    category=RuntimeWarning,
+)
 
 # ---------------------------------------------------------------------------
 # IonQ native gate stubs (used for transpilation target description)

@@ -15,6 +15,7 @@ _RACE_PARAM_KEYS = frozenset({
     "n_qubits", "model", "time", "n_steps",
     "use_simulator", "use_qpu", "noise_model", "qpu_name",
     "shots", "initial_state", "seed_simulator",
+    "cache_bypass", "add_shots",
 })
 
 
