@@ -93,6 +93,37 @@ def _cache_records_for_lookup(
     ]
 
 
+def _with_cached_hamiltonian_final_samples(
+    module_id: str,
+    steps: list[dict[str, Any]],
+    final_result: dict[str, Any],
+    counts: dict[str, int],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """For cached Hamiltonian runs, show measured samples at the final snapshot."""
+    if module_id != "hamiltonian_sim" or not steps or not counts:
+        return steps, final_result
+
+    total = sum(int(v) for v in counts.values())
+    if total <= 0:
+        return steps, final_result
+
+    final_probs = {str(bit): int(n) / total for bit, n in sorted(counts.items())}
+    replay_steps = [dict(step) for step in steps]
+    final_step = dict(replay_steps[-1])
+    final_step["state_probabilities"] = final_probs
+    final_step["sampled_counts"] = {str(bit): int(n) for bit, n in sorted(counts.items())}
+    final_step["sampled_shots"] = total
+    final_step["description"] = (
+        f"{final_step.get('description', 'Final Trotter step')} "
+        f"(cached measured samples, {total} shots)"
+    )
+    replay_steps[-1] = final_step
+
+    replay_final = dict(final_result or {})
+    replay_final["measured_counts"] = {str(bit): int(n) for bit, n in sorted(counts.items())}
+    return replay_steps, replay_final
+
+
 @dataclass
 class RaceResult:
     """Container for a completed race."""
@@ -172,12 +203,18 @@ class RaceModule(ABC):
                 md["cache_records"] = agg["n_records"]
                 md["cache_shots"] = agg["shots"]
                 md["cache_key"] = key
+                steps, final_result = _with_cached_hamiltonian_final_samples(
+                    self.module_id,
+                    agg.get("steps", []),
+                    agg.get("final_result", {}),
+                    agg.get("counts", {}),
+                )
                 # Replay the stored per-iteration steps so the UI animates the
                 # cached run exactly like a fresh one. Without them the quantum
                 # panel has nothing to draw and stays on "Waiting for race…".
                 return {
-                    "steps": agg.get("steps", []),
-                    "final_result": agg.get("final_result", {}),
+                    "steps": steps,
+                    "final_result": final_result,
                     "metadata": md,
                 }
 

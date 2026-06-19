@@ -431,6 +431,40 @@ def test_hook_replays_legacy_hamiltonian_chain_record(monkeypatch):
     assert result["metadata"]["cache_key"] == key
 
 
+def test_cached_hamiltonian_replay_uses_samples_for_final_snapshot(monkeypatch):
+    monkeypatch.setattr(_FakeRace, "module_id", "hamiltonian_sim")
+    p = {"n_qubits": 3, "use_qpu": True, "qpu_name": "qpu.forte-1", "shots": 100}
+    key = cache.compute_key("hamiltonian_sim", p)
+    base_record = {
+        "steps": [
+            {"step": 1, "state_probabilities": {"000": 1.0}},
+            {"step": 2, "state_probabilities": {"000": 0.9, "111": 0.1}},
+        ],
+        "final_result": {
+            "measured_counts": {"000": 100},
+            "execution": {
+                "requested": "qpu.forte-1",
+                "actual": "qpu.forte-1",
+                "fell_back": False,
+            },
+        },
+        "metadata": {"elapsed": 0.01},
+    }
+    cache.put(key, {**base_record, "shots": 100, "counts": {"000": 60, "111": 40}})
+    cache.put(key, {**base_record, "shots": 100, "counts": {"000": 20, "111": 80}})
+
+    _FakeRace.calls = 0
+    result = _hook(p)
+
+    assert _FakeRace.calls == 0
+    assert result["metadata"]["cache_hit"] is True
+    assert result["metadata"]["cache_shots"] == 200
+    assert result["steps"][0]["state_probabilities"] == {"000": 1.0}
+    assert result["steps"][-1]["state_probabilities"] == {"000": 0.4, "111": 0.6}
+    assert result["steps"][-1]["sampled_counts"] == {"000": 80, "111": 120}
+    assert result["final_result"]["measured_counts"] == {"000": 80, "111": 120}
+
+
 def test_hook_add_shots_bypasses_lookup_and_appends(monkeypatch):
     monkeypatch.setenv("IONQ_API_KEY", "fake")
     _FakeRace.calls = 0
